@@ -1,3 +1,2 @@
-tinytag
-pypiwin32
+music-tag
 yandex-music
