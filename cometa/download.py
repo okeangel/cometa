@@ -1,10 +1,11 @@
 #! /usr/bin/env python3
 
-import json
-import time
 import os
-import re
+import pathlib
+import time
 import datetime
+import re
+import json
 
 import mutagen.mp3
 import mutagen.id3
@@ -21,17 +22,21 @@ USER_YANDEX_MUSIC_OAUTH_LINK = (
 USER_YANDEX_MUSIC_TOKEN = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
 USER_SAVE_DIRECTORY = '!Cometa'
 
-def get_download_path():
+
+def get_download_path(nested_path):
     """Returns the default downloads path for Linux or Windows"""
     if os.name == 'nt':
         import winreg
-        sub_key = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
+        sub_key = (r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
+                    '\Shell Folders')
         downloads_guid = '{374DE290-123F-4565-9164-39C4925E467B}'
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as key:
-            location = winreg.QueryValueEx(key, downloads_guid)[0]
-        return location
+            downloads = pathlib.Path(
+                winreg.QueryValueEx(key, downloads_guid)[0]
+            )
     else:
-        return os.path.join(os.path.expanduser('~'), 'Downloads')
+        downloads = pathlib.Path.joinpath(os.path.expanduser('~'), 'Downloads')
+    return downloads.joinpath(nested_path)
 
 
 def is_saved(file_path):
@@ -251,11 +256,13 @@ def save_new_tracks_liked():
 
     for item in ya_music.users_likes_tracks():
         if item.id not in saved:
-            save_track(item.fetch_track(), ya_music, imported=item.timestamp[:19])
+            save_track(
+                item.fetch_track(), ya_music, imported=item.timestamp[:19]
+            )
 
 
 if __name__ == '__main__':
-    USER_SAVE_PATH = get_download_path()
+    USER_SAVE_PATH = get_download_path(USER_SAVE_DIRECTORY)
     print(USER_SAVE_PATH)
     print(USER_YANDEX_MUSIC_OAUTH_LINK)
     save_new_tracks_liked()

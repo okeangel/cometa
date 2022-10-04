@@ -1,0 +1,80 @@
+Идея: плеер для отбора треков.
+- не показывает мету;
+- только полосу прокрутки и кнопки "лайк", "дизлайк", "play/pause", "end/continue"
+
+Задачи:
+- Yandex_Music_Client:
+  - def save_track(track_from_yandex, path_to_file) --> None:
+  - def save_like_tracks(path_to_directory) --> None:
+- Music_Collection:
+  - процедура записать самую раннюю дату(дерево / коллекция)
+
+
+Распределение в коллекции:
+
+    пути:
+['E:/yandex.drive/music', 'E:/Yandex.Drive/DJTracks', 'E:/downloads']
+
+    аудиоконтейнеры:
+MP3       - 72.5%
+FLAC      - 26.7%
+Vorbis     - 0.1%
+iTunes MP4 - 0.6%
+WMA        - 0.1%
+Opus       - 0.0%
+
+    форматы меты:
+id3v2.4  - 6%
+id3v2.3 - 66.5%
+id3v1   - 64.9%
+apev2    - 2.9%
+
+    личные тэги:
+sweetall_imported
+sweetall_rating
+sweetall_program
+sweetall_program_track_number
+
+    другие источники тэгов:
+itunes
+discogs
+musicbrainz
+
+    тэги, связанные с треком в коллекции foobar2000:
+played
+first_played
+last_played
+added
+rating
+
+
+
+функция, чтобы выбрать минимальное из значений:
+  - сперва проверить, что значения подходят к шаблону
+    - если нет - то нужно предложить ввести исправленное значение
+	  - если введенё '' - то пропустить значение и продолжить перебор
+
+.lower()
+.upper()
+.title()
+.capitalize()
+
+    тэги трека:
+sweetall_imported
+accessed
+added
+created
+creation_time
+imported
+imported_win_created
+imported_win_created_unix_ts
+
+    свойства файла:
+Path(path_to_track_file).stat().st_mtime
+Path(path_to_track_file).stat().st_ctime
+
+    тэги, связанные с треком в коллекции foobar2000:
+added
+created
+созданные мною
+
