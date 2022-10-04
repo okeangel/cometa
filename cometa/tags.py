@@ -1,5 +1,6 @@
-import mutagen.mp3
-import mutagen.id3
+import mutagen
+# import mutagen.mp3
+# import mutagen.id3
 import os
 import json
 import jsbeautifier
@@ -84,12 +85,62 @@ def write_tag(filename, tags: dict):
 # Vorbis, FLAC, APEv2 - same structure
 
 test_path = "F:\\mutagen\\"
+save_tags_from_dir(test_path)
 
+"""
 read(test_path + '1-3.mp3')
 
 metadata = mutagen.id3.ID3(test_path + '1-3.mp3', translate=False)
 # v2_version=3
 print(metadata.version)
 print(jsbeautifier.beautify(str(metadata)))
+"""
 
 #metadata.save()
+
+# ctime
+# accessed      '%Y-%m-%d'
+# creation_time '%Y-%m-%d %H:%M:%S'
+# imported_win_created
+# imported_win_created_unix_ts
+
+# TODO: sweetall_imported '%Y-%m-%dT%H:%M:%S'
+
+def earliest_date_time_string(date_time_strings):
+    earliest = date_time_strings[0]
+    for current in date_time_strings[1:]:
+        end = min(len(earliest), len(current))
+        if earliest[:end] == current[:end]:
+            if len(earliest) < len(current):
+                earliest = current
+        else:
+            earliest = min(earliest, current)
+    return earliest
+
+def correct_earliest():
+    # select the earliest import date
+    created = datetime.datetime.fromtimestamp(
+        os.path.getctime(USER_SAVE_PATH + file_name + '.mp3')
+    ).strftime(
+        '%Y-%m-%dT%H:%M:%S.%f')
+
+    created_date = created_dt[:10]
+    if 'TXXX:CREATED' in tags:
+        if created_date > str(tags['TXXX:CREATED']):
+            created_date = str(tags['TXXX:CREATED'])            
+        del tags['TXXX:CREATED']
+        tags.add(mutagen.id3.TXXX(encoding=3,
+                                  desc=u'created', text=created_date))
+    elif 'TXXX:created' in tags:
+        if (created_date < str(tags['TXXX:created'])):
+            del tags['TXXX:created']
+            tags.add(mutagen.id3.TXXX(encoding=3,
+                                      desc=u'created', text=created_date))
+    else:
+        tags.add(mutagen.id3.TXXX(encoding=3,
+                                      desc=u'created', text=created_date))
+    tags.add(mutagen.id3.TXXX(encoding=3,
+                              desc=u'imported_win_created', text=created_dt))
+    tags.add(mutagen.id3.TXXX(encoding=3,
+                              desc=u'imported_win_created_unix_ts',
+                              text=str(created)))
