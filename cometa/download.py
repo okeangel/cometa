@@ -19,7 +19,19 @@ USER_YANDEX_MUSIC_OAUTH_LINK = (
     '&client_id=23cabbbdc6cd418abb4b39c32c41195d'
 )
 USER_YANDEX_MUSIC_TOKEN = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
-USER_SAVE_PATH = 'E:/Downloads/!Cometa/'
+USER_SAVE_DIRECTORY = '!Cometa'
+
+def get_download_path():
+    """Returns the default downloads path for Linux or Windows"""
+    if os.name == 'nt':
+        import winreg
+        sub_key = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
+        downloads_guid = '{374DE290-123F-4565-9164-39C4925E467B}'
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as key:
+            location = winreg.QueryValueEx(key, downloads_guid)[0]
+        return location
+    else:
+        return os.path.join(os.path.expanduser('~'), 'Downloads')
 
 
 def is_saved(file_path):
@@ -243,4 +255,7 @@ def save_new_tracks_liked():
 
 
 if __name__ == '__main__':
+    USER_SAVE_PATH = get_download_path()
+    print(USER_SAVE_PATH)
+    print(USER_YANDEX_MUSIC_OAUTH_LINK)
     save_new_tracks_liked()
