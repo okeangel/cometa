@@ -4,8 +4,8 @@
 
 Задачи:
 - Yandex_Music_Client:
-  - def save_track(track_from_yandex, path_to_file) --> None:
-  - def save_like_tracks(path_to_directory) --> None:
+  - def save_track(track_from_yandex, path_to_file) -> None:
+  - 
 - Music_Collection:
   - процедура записать самую раннюю дату(дерево / коллекция)
 
