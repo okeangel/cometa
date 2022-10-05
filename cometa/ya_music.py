@@ -13,29 +13,9 @@ import yandex_music
 import jsbeautifier
 
 
-USER_TAG_PREFIX = 'sweetall'
-
-
-def get_download_path(nested_path):
-    """Returns the default downloads path for Linux or Windows"""
-    if os.name == 'nt':
-        import winreg
-        sub_key = (r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
-                    '\Shell Folders')
-        downloads_guid = '{374DE290-123F-4565-9164-39C4925E467B}'
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as key:
-            downloads = pathlib.Path(
-                winreg.QueryValueEx(key, downloads_guid)[0]
-            )
-    else:
-        downloads = pathlib.Path.home().joinpath('Downloads')
-    return downloads.joinpath(nested_path)
-
-
-def is_saved(file_path):
-    """Check if the file is avaliable
-    """
-    return os.path.isfile(file_path) and os.path.getsize(file_path) > 0
+def is_saved(path):
+    """Check if the file is avaliable"""
+    return path.is_file() and path.stat().st_size > 0
 
 
 def convert_to_file_name(
@@ -59,7 +39,7 @@ def convert_to_file_name(
     return name
 
 
-def save_audio(track, file_name, path):
+def save_audio_from_yandex(track, file_name, path):
     if not is_saved(f"{path}{file_name}.mp3"):
         try:
             track.download(f"{path}{file_name}.mp3", 'mp3', 320)
@@ -133,7 +113,7 @@ def get_album_data(track, client):
     return albums[0]
 
 
-def get_meta_from_yandex_track(track, client):
+def get_meta_of_track_from_yandex(track, client):
     meta = {
         'title': trim_original_mix(track.title),
         'version': track.version,
@@ -220,11 +200,19 @@ def update_id3(meta, file_name, file_path, track):
     os.remove(user_save_path + file_name + '.jpg')
 
 
-def save_track(track_from_yandex: yandex_music.track.track.Track,
-               client: yandex_music.client.Client,
-               imported: str=None) -> None:
-    meta = get_meta_from_yandex_track(track, client=client)
-    meta['{}_imported'.format(USER_TAG_PREFIX)] = imported
+def save_track(
+        yandex_music_client: yandex_music.client.Client,
+        playlist_record: yandex_music.track_short.TrackShort,
+        user_tag_prefix: str,
+        user_save_path: pathlib.Path,
+    ) -> None:
+    """Save track with metadata"""
+    track = playlist_record.
+
+    meta = get_meta_of_track_from_yandex(yandex_music_client,
+                                         yandex_music_track)
+    meta['{}_imported'.format(user_tag_prefix)] = item.timestamp[:19]
+    print(meta)
 
     # save audio sream to content file
     file_name = convert_to_file_name(
@@ -233,7 +221,10 @@ def save_track(track_from_yandex: yandex_music.track.track.Track,
             meta['title_combined'],
             meta['yandex_music_track_id'],
     ))
-    save_audio(track, file_name, user_save_path)
+    save_audio_of_track_from_yandex(yandex_music_track,
+                                    user_save_path / file_name)
+    
+
 
     update_id3(meta, file_name, user_save_path, track)
 
@@ -248,42 +239,66 @@ def load_saved_ids(path_to_saved_ids: pathlib.Path) -> list:
     return []
 
 
-def save_like_tracks(user_token: str,
-                     path_to_directory: pathlib.Path,
-                     path_to_saved_ids: pathlib.Path) -> None:
+def save_favorite_tracks(
+        yandex_music_client: yandex_music.Client,
+        user_save_path: pathlib.Path,
+        path_to_saved_ids: pathlib.Path,
+        user_tag_prefix: str,
+    ) -> None:
     """
     Save tracks from Yandex.Music that the user likes.
     
     Skips those tracks whose Yandex Music ID is in `saved_ids`.
     
     Args:
-        user_token: to access Yandex.Music
-        path_to_directory: directory where files should be saved
+        yandex_music_client: a client with a user session
+        user_save_path: directory where files should be saved
         path_to_save_ids: file where ids are saved
+        user_tag_prefix: prefix for user custom tags
     """
-    ya_music = yandex_music.Client(user_token).init()
     saved_ids = load_saved_ids(path_to_saved_ids)
 
-    for item in ya_music.users_likes_tracks():
-        if item.id not in saved_ids:
-            save_track(item.fetch_track(),
-                       ya_music,
-                       imported=item.timestamp[:19])
+    user_save_path.mkdir(parents=True, exist_ok=True)
+    for playlist_record in yandex_music_client.users_likes_tracks():
+        if playlist_record.id not in saved_ids:
+            save_track(
+                yandex_music_client,
+                playlist_record,
+                user_tag_prefix,
+                user_save_path,
+            )
+
+
+def get_download_path(nested_path: str) -> pathlib.Path:
+    """Return the default downloads path for Linux or Windows"""
+    if os.name == 'nt':
+        import winreg
+        sub_key = (r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer'
+                    '\Shell Folders')
+        downloads_guid = '{374DE290-123F-4565-9164-39C4925E467B}'
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as key:
+            downloads = pathlib.Path(
+                winreg.QueryValueEx(key, downloads_guid)[0]
+            )
+    else:
+        downloads = pathlib.Path.home().joinpath('Downloads')
+    return downloads.joinpath(nested_path)
 
 
 if __name__ == '__main__':
-    user_save_directory = '!Cometa'
-    user_save_path = get_download_path(user_save_directory)
-    print(user_save_path)
+    user_tag_prefix = 'sweetall'
+    print('User tag prefix:', user_tag_prefix + '_*')
+    
+    user_save_subdir = '!Cometa'
+    user_save_path = get_download_path(user_save_subdir)
+    print('Download to:', user_save_path)
 
-    user_yandex_music_oauth_link = (
-        'https://oauth.yandex.ru/authorize'
-        '?response_type=token'
-        '&client_id=23cabbbdc6cd418abb4b39c32c41195d'
+    user_token = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
+    yandex_music_client = yandex_music.Client(user_token).init()
+    
+    save_favorite_tracks(
+        yandex_music_client,
+        user_save_path,
+        user_save_path / '_saved_from_yandex_music.txt',
+        user_tag_prefix,
     )
-    print(user_yandex_music_oauth_link)
-
-    user_yandex_music_token = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
-    save_like_tracks(user_yandex_music_token,
-                     user_save_path,
-                     user_save_path / '_saved_from_yandex_music.txt')
