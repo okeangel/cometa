@@ -73,9 +73,9 @@ def trim_original_mix(text):
     return text
 
 
-def get_album_data(track, client):
-    albums = []
-    for album in track.albums:
+def get_album_meta(albums):
+    album_metas = []
+    for album in albums:
         release = {
             'genre': album.genre,
             'labels': [l.name for l in album.labels],
@@ -107,13 +107,13 @@ def get_album_data(track, client):
         if volumes:
             release['volume_number'] = album.track_position.volume
             release['volumes_total'] = len(volumes)
-        albums.append(release)
+        album_metas.append(release)
     
     albums.sort(key=lambda x: x['release_date'])
     return albums[0]
 
 
-def get_meta_of_track_from_yandex(track, client):
+def get_track_meta(track, client):
     meta = {
         'title': trim_original_mix(track.title),
         'version': track.version,
@@ -141,7 +141,7 @@ def get_meta_of_track_from_yandex(track, client):
     else:
         meta['title_combined'] = meta['title']
 
-    meta.update(get_album_data(track, client=client))
+
     return meta
 
 
@@ -207,24 +207,24 @@ def save_track(
         user_save_path: pathlib.Path,
     ) -> None:
     """Save track with metadata"""
-    track = playlist_record.
+    track = playlist_record.fetch_track()
 
-    meta = get_meta_of_track_from_yandex(yandex_music_client,
-                                         yandex_music_track)
-    meta['{}_imported'.format(user_tag_prefix)] = item.timestamp[:19]
+    meta = get_track_meta(yandex_music_client, track)
+    meta.update(get_album_meta(track.albums)
+    
+    imported_tag_name = '{}_imported'.format(user_tag_prefix)
+    meta[imported_tag_name] = playlist_record.timestamp[:19]
     print(meta)
 
-    # save audio sream to content file
+    # save audio stream to content file
     file_name = convert_to_file_name(
         '{} - {} ({})'.format(
             ', '.join(meta['artists']),
             meta['title_combined'],
             meta['yandex_music_track_id'],
     ))
-    save_audio_of_track_from_yandex(yandex_music_track,
-                                    user_save_path / file_name)
-    
-
+    save_audio(yandex_music_track,
+               user_save_path / file_name)
 
     update_id3(meta, file_name, user_save_path, track)
 
