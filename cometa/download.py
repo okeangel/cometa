@@ -14,13 +14,6 @@ import jsbeautifier
 
 
 USER_TAG_PREFIX = 'sweetall'
-USER_YANDEX_MUSIC_OAUTH_LINK = (
-    'https://oauth.yandex.ru/authorize'
-    '?response_type=token'
-    '&client_id=23cabbbdc6cd418abb4b39c32c41195d'
-)
-USER_YANDEX_MUSIC_TOKEN = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
-USER_SAVE_DIRECTORY = '!Cometa'
 
 
 def get_download_path(nested_path):
@@ -35,7 +28,7 @@ def get_download_path(nested_path):
                 winreg.QueryValueEx(key, downloads_guid)[0]
             )
     else:
-        downloads = pathlib.Path.joinpath(os.path.expanduser('~'), 'Downloads')
+        downloads = pathlib.Path.home().joinpath('Downloads')
     return downloads.joinpath(nested_path)
 
 
@@ -140,7 +133,7 @@ def get_album_data(track, client):
     return albums[0]
 
 
-def extract_meta(track, client):
+def get_meta_from_yandex_track(track, client):
     meta = {
         'title': trim_original_mix(track.title),
         'version': track.version,
@@ -175,7 +168,7 @@ def extract_meta(track, client):
 def update_id3(meta, file_name, file_path, track):
     # load ID3 tag from content file
     try:
-        tags = mutagen.id3.ID3(USER_SAVE_PATH + file_name + '.mp3')
+        tags = mutagen.id3.ID3(user_save_path + file_name + '.mp3')
     except mutagen.id3._util.ID3NoHeaderError as e:
         tags = mutagen.id3.ID3()
 
@@ -215,20 +208,22 @@ def update_id3(meta, file_name, file_path, track):
     ))
 
     # add artwork
-    save_cover(track, file_name, USER_SAVE_PATH)
+    save_cover(track, file_name, user_save_path)
     tags.add(mutagen.id3.APIC(
         encoding=3, mime='image/jpeg', type=3, desc=u'Cover',
-        data=open(USER_SAVE_PATH + file_name + '.jpg', 'rb').read(),
+        data=open(user_save_path + file_name + '.jpg', 'rb').read(),
     ))
     
     # save ID3 to content file
-    tags.save(USER_SAVE_PATH + file_name + '.mp3')
+    tags.save(user_save_path + file_name + '.mp3')
     # delete temp artwork file
-    os.remove(USER_SAVE_PATH + file_name + '.jpg')
+    os.remove(user_save_path + file_name + '.jpg')
 
 
-def save_track(track, client, imported=None):
-    meta = extract_meta(track, client=client)
+def save_track(track_from_yandex: yandex_music.track.track.Track,
+               client: yandex_music.client.Client,
+               imported: str=None) -> None:
+    meta = get_meta_from_yandex_track(track, client=client)
     meta['{}_imported'.format(USER_TAG_PREFIX)] = imported
 
     # save audio sream to content file
@@ -238,31 +233,57 @@ def save_track(track, client, imported=None):
             meta['title_combined'],
             meta['yandex_music_track_id'],
     ))
-    save_audio(track, file_name, USER_SAVE_PATH)
+    save_audio(track, file_name, user_save_path)
 
-    update_id3(meta, file_name, USER_SAVE_PATH, track)
+    update_id3(meta, file_name, user_save_path, track)
 
-    with open(USER_SAVE_PATH + '_saved_from_yandex_music.txt', 'a+') as file:
+    with open(user_save_path + '_saved_from_yandex_music.txt', 'a+') as file:
         file.write(track.id + '\n')
 
 
-def save_new_tracks_liked():
-    ya_music = yandex_music.Client(USER_YANDEX_MUSIC_TOKEN).init()
-    try:
-        with open(USER_SAVE_PATH + '_saved_from_yandex_music.txt') as file:
-            saved = file.read().split('\n')
-    except FileNotFoundError:
-        saved = []
+def load_saved_ids(path_to_saved_ids: pathlib.Path) -> list:
+    """Return a list of saved IDs from file"""
+    if path_to_saved_ids.is_file():
+        return path_to_saved_ids.read_text(encoding='utf-8').split('\n')
+    return []
+
+
+def save_like_tracks(user_token: str,
+                     path_to_directory: pathlib.Path,
+                     path_to_saved_ids: pathlib.Path) -> None:
+    """
+    Save tracks from Yandex.Music that the user likes.
+    
+    Skips those tracks whose Yandex Music ID is in `saved_ids`.
+    
+    Args:
+        user_token: to access Yandex.Music
+        path_to_directory: directory where files should be saved
+        path_to_save_ids: file where ids are saved
+    """
+    ya_music = yandex_music.Client(user_token).init()
+    saved_ids = load_saved_ids(path_to_saved_ids)
 
     for item in ya_music.users_likes_tracks():
-        if item.id not in saved:
-            save_track(
-                item.fetch_track(), ya_music, imported=item.timestamp[:19]
-            )
+        if item.id not in saved_ids:
+            save_track(item.fetch_track(),
+                       ya_music,
+                       imported=item.timestamp[:19])
 
 
 if __name__ == '__main__':
-    USER_SAVE_PATH = get_download_path(USER_SAVE_DIRECTORY)
-    print(USER_SAVE_PATH)
-    print(USER_YANDEX_MUSIC_OAUTH_LINK)
-    save_new_tracks_liked()
+    user_save_directory = '!Cometa'
+    user_save_path = get_download_path(user_save_directory)
+    print(user_save_path)
+
+    user_yandex_music_oauth_link = (
+        'https://oauth.yandex.ru/authorize'
+        '?response_type=token'
+        '&client_id=23cabbbdc6cd418abb4b39c32c41195d'
+    )
+    print(user_yandex_music_oauth_link)
+
+    user_yandex_music_token = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
+    save_like_tracks(user_yandex_music_token,
+                     user_save_path,
+                     user_save_path / '_saved_from_yandex_music.txt')
