@@ -13,6 +13,12 @@ import yandex_music
 import jsbeautifier
 
 
+def save_yandex_track_meta(track_path, track):
+    json_path = track_path.with_suffix('.json')
+    if not is_saved(json_path):
+        json_path.write_text(track.to_json(), encoding='utf-8')
+
+
 def is_saved(path):
     """Check if the file is avaliable"""
     return path.is_file() and path.stat().st_size > 0
@@ -29,38 +35,16 @@ def convert_to_file_name(
     name = re.sub(r'[' + quotes + ']', quote_replace, name)
     name = re.sub(r'\s{2,}', multispaces_replace, name)
 
-    # запрещенные символы в windows
+    # dot is undesirable because it controls file settings
+    name = re.sub(r'\.', '', name)
+    # forbidden characters in Windows
     name = re.sub(r'[|*?<>:\\\n\r\t\v]', '', name)
 
     name = name.strip()
     name = name.rstrip('-')  # на всякий случай
-    name = name.rstrip('.')  # точка в конце не разрешена в windows
+    # name = name.rstrip('.')  # точка в конце не разрешена в windows
     name = name.strip()  # не разрешен пробел в конце в windows
     return name
-
-
-def save_audio_from_yandex(track, file_name, path):
-    if not is_saved(f"{path}{file_name}.mp3"):
-        try:
-            track.download(f"{path}{file_name}.mp3", 'mp3', 320)
-        except yandex_music.exceptions.InvalidBitrateError:
-            track.download(f"{path}{file_name}.mp3")
-
-
-def save_cover(track, file_name, path):
-    if not is_saved(f"{path}{file_name}.jpg"):
-        try:
-            track.download_cover(f"{path}{file_name}.jpg", size='1000x1000')
-        except AttributeError:
-            track.download_cover(f"{path}{file_name}.jpg")
-        except AttributeError as e:
-            print(f"{file_name} failed to download the cover:\n{e}")
-
-
-def save_meta(track, file_name, path):
-    if not is_saved(f"{path}{file_name}.json"):        
-        with open(f"{path}{file_name}.txt", 'w+', encoding='utf-8') as file:
-            file.write(track.to_json())
 
 
 def trim_original_mix(text):
@@ -73,16 +57,107 @@ def trim_original_mix(text):
     return text
 
 
-def get_album_meta(albums):
+def save_artwork(track, track_path):
+    if not is_saved(track_path):
+        try:
+            track.download_cover(track_path, size='1000x1000')
+        except AttributeError:
+            track.download_cover(track_path)
+        except AttributeError as e:
+            print(f"{track_path} failed to download the cover:\n{e}")
+
+
+def update_id3_artwork(track_path, track):
+    artwork_path = track_path.with_suffix('.jpg')
+    save_artwork(track, artwork_path)
+
+    track_path = track_path.with_suffix('.mp3')
+    try:
+        tags = mutagen.id3.ID3(track_path)
+    except mutagen.id3._util.ID3NoHeaderError as e:
+        tags = mutagen.id3.ID3()
+    tags.add(mutagen.id3.APIC(
+        encoding=3, mime='image/jpeg', type=3, desc=u'Cover',
+        data=artwork_path.read_bytes(),
+    ))
+    tags.save(track_path)
+
+    # delete temp artwork file
+    artwork_path.unlink()
+
+
+def update_id3(track_path, meta, user_tag_prefix):
+    track_path = track_path.with_suffix('.mp3')
+
+    # load ID3 tag from content file
+    try:
+        tags = mutagen.id3.ID3(track_path)
+    except mutagen.id3._util.ID3NoHeaderError as e:
+        tags = mutagen.id3.ID3()
+
+    tags.add(mutagen.id3.TIT2(encoding=3, text=meta['title_combined']))
+    tags.add(mutagen.id3.TPE1(encoding=3, text=meta['artists']))
+    tags.add(mutagen.id3.TPUB(encoding=3, text=meta['publisher']))
+    if meta['language']:
+        tags.add(mutagen.id3.TLAN(encoding=3, text=meta['language']))
+    if meta['unsynchronized_lyrics']:
+        tags.add(mutagen.id3.USLT(encoding=3,
+                                  text=meta['unsynchronized_lyrics']))
+    tags.add(mutagen.id3.TALB(encoding=3, text=meta['release_title']))
+    tags.add(mutagen.id3.TDRC(encoding=3, text=meta['release_date']))
+    tags.add(mutagen.id3.TDRL(encoding=3, text=meta['release_date']))
+    if meta['genre']:
+        tags.add(mutagen.id3.TCON(encoding=3, text=meta['genre']))
+    tags.add(mutagen.id3.TPUB(encoding=3, text=meta['labels']))
+    if meta['track_number']:
+        tags.add(mutagen.id3.TRCK(
+            encoding=1,
+            text='{}/{}'.format(meta['track_number'],
+                                meta['tracks_total'])
+        ))
+    if meta.get('volume_number'):
+        tags.add(mutagen.id3.TPOS(
+            encoding=3,
+            text='{}/{}'.format(meta['volume_number'],
+                                meta['volumes_total'])
+        ))
+    tags.add(mutagen.id3.TXXX(encoding=3,
+                              desc='yandex_music_track_id',
+                              text=meta['yandex_music_track_id']))
+    tags.add(mutagen.id3.TXXX(
+        encoding=3,
+        desc='{}_imported'.format(user_tag_prefix),
+        text=meta['{}_imported'.format(user_tag_prefix)],
+    ))
+
+    # save ID3 to content file
+    tags.save(track_path)
+
+
+def save_audio(track, track_path, type='mp3', bitrate=320):
+    track_path = track_path.with_suffix('.' + type)
+    if not is_saved(track_path):
+        try:
+            track.download(track_path, type, bitrate)
+        except yandex_music.exceptions.InvalidBitrateError:
+            track.download(track_path, type)
+
+
+def complete_with_nines(time_string: str) -> str:
+    pattern = '9999-99-99T99:99:99'
+    return time_string + pattern[len(time_string):]
+
+
+def earliest_time_string(time_strings: list) -> str:
+    return sorted(time_strings, key=complete_with_nines)[0]
+
+
+def get_album_meta(albums, track=None):
     album_metas = []
     for album in albums:
         release = {
             'genre': album.genre,
             'labels': [l.name for l in album.labels],
-            'track_number': album.track_position.index,
-            'tracks_total': album.track_count,
-            'volume_number': None,
-            'volumes_total': None,
         }
 
         title = trim_original_mix(album.title)
@@ -90,30 +165,44 @@ def get_album_meta(albums):
             title += ' ({})'.format(album.version)
         release['release_title'] = trim_original_mix(title)
 
-        date = '9999'
+        if(album.start_date):
+            print('Start date:', album.start_date)
+        dates = ['9999']
         if album.release_date:
-            date = album.release_date[:19]
-        if date.endswith('T00:00:00'):
-            date = date[:10]
+            if album.release_date[:19].endswith('T00:00:00'):
+                dates.append(album.release_date[:10])
+            else:
+                dates.append(album.release_date[:19])
         if album.year:
-            if str(album.year) < date[:4]:
-                date = str(album.year)
+            dates.append(str(album.year))
         if album.original_release_year:
-            if str(album.original_release_year) < date[:4]:
-                date = str(album.original_release_year)
-        release['release_date'] = date
+            dates.original_release_year(str(album.year))
+        release_date = earliest_time_string(dates)
+        release['release_date'] = earliest_time_string(dates)
 
-        volumes = client.albums_with_tracks(album.id).volumes
-        if volumes:
+        release['track_number'] = album.track_position.index
+        volumes = album.with_tracks().volumes
+        if volumes and len(volumes) > 1:
+            if track:
+                for volume in volumes:
+                    for item in volume:
+                        if item.id == track.id:
+                            release['tracks_total'] = len(volume)
+                            break
+                    if release.get('tracks_total'):
+                        break
             release['volume_number'] = album.track_position.volume
             release['volumes_total'] = len(volumes)
+        else:
+            release['tracks_total'] = album.track_count
+
         album_metas.append(release)
     
-    albums.sort(key=lambda x: x['release_date'])
-    return albums[0]
+    album_metas.sort(key=lambda x: complete_with_nines(x['release_date']))
+    return album_metas[0]
 
 
-def get_track_meta(track, client):
+def get_track_meta(track):
     meta = {
         'title': trim_original_mix(track.title),
         'version': track.version,
@@ -141,67 +230,10 @@ def get_track_meta(track, client):
     else:
         meta['title_combined'] = meta['title']
 
-
     return meta
 
 
-def update_id3(meta, file_name, file_path, track):
-    # load ID3 tag from content file
-    try:
-        tags = mutagen.id3.ID3(user_save_path + file_name + '.mp3')
-    except mutagen.id3._util.ID3NoHeaderError as e:
-        tags = mutagen.id3.ID3()
-
-    tags.add(mutagen.id3.TIT2(encoding=3, text=meta['title_combined']))
-    tags.add(mutagen.id3.TPE1(encoding=3, text=meta['artists']))
-    tags.add(mutagen.id3.TPUB(encoding=3, text=meta['publisher']))
-    if meta['language']:
-        tags.add(mutagen.id3.TLAN(encoding=3, text=meta['language']))
-    if meta['unsynchronized_lyrics']:
-        tags.add(mutagen.id3.USLT(encoding=3,
-                                  text=meta['unsynchronized_lyrics']))
-    tags.add(mutagen.id3.TALB(encoding=3, text=meta['release_title']))
-    tags.add(mutagen.id3.TDRC(encoding=3, text=meta['release_date']))
-    tags.add(mutagen.id3.TDRL(encoding=3, text=meta['release_date']))
-    if meta['genre']:
-        tags.add(mutagen.id3.TCON(encoding=3, text=meta['genre']))
-    tags.add(mutagen.id3.TPUB(encoding=3, text=meta['labels']))
-    if meta['track_number']:
-        tags.add(mutagen.id3.TRCK(
-            encoding=1,
-            text='{}/{}'.format(meta['track_number'],
-                                meta['tracks_total'])
-        ))
-    if meta['volume_number']:
-        tags.add(mutagen.id3.TPOS(
-            encoding=3,
-            text='{}/{}'.format(meta['volume_number'],
-                                meta['volumes_total'])
-        ))
-    tags.add(mutagen.id3.TXXX(encoding=3,
-                              desc='yandex_music_track_id',
-                              text=meta['yandex_music_track_id']))
-    tags.add(mutagen.id3.TXXX(
-        encoding=3,
-        desc='{}_imported'.format(USER_TAG_PREFIX),
-        text=meta['{}_imported'.format(USER_TAG_PREFIX)],
-    ))
-
-    # add artwork
-    save_cover(track, file_name, user_save_path)
-    tags.add(mutagen.id3.APIC(
-        encoding=3, mime='image/jpeg', type=3, desc=u'Cover',
-        data=open(user_save_path + file_name + '.jpg', 'rb').read(),
-    ))
-    
-    # save ID3 to content file
-    tags.save(user_save_path + file_name + '.mp3')
-    # delete temp artwork file
-    os.remove(user_save_path + file_name + '.jpg')
-
-
 def save_track(
-        yandex_music_client: yandex_music.client.Client,
         playlist_record: yandex_music.track_short.TrackShort,
         user_tag_prefix: str,
         user_save_path: pathlib.Path,
@@ -209,8 +241,8 @@ def save_track(
     """Save track with metadata"""
     track = playlist_record.fetch_track()
 
-    meta = get_track_meta(yandex_music_client, track)
-    meta.update(get_album_meta(track.albums)
+    meta = get_track_meta(track)
+    meta.update(get_album_meta(track.albums, track))
     
     imported_tag_name = '{}_imported'.format(user_tag_prefix)
     meta[imported_tag_name] = playlist_record.timestamp[:19]
@@ -223,13 +255,16 @@ def save_track(
             meta['title_combined'],
             meta['yandex_music_track_id'],
     ))
-    save_audio(yandex_music_track,
-               user_save_path / file_name)
+    track_path = user_save_path / file_name
+    print(file_name)
 
-    update_id3(meta, file_name, user_save_path, track)
+    # save_yandex_track_meta(track_path, track)
+    save_audio(track, track_path)
+    update_id3(track_path, meta, user_tag_prefix)
+    update_id3_artwork(track_path, track)
 
-    with open(user_save_path + '_saved_from_yandex_music.txt', 'a+') as file:
-        file.write(track.id + '\n')
+    if not is_saved(user_save_path / (file_name + '.mp3')):
+        raise
 
 
 def load_saved_ids(path_to_saved_ids: pathlib.Path) -> list:
@@ -262,11 +297,12 @@ def save_favorite_tracks(
     for playlist_record in yandex_music_client.users_likes_tracks():
         if playlist_record.id not in saved_ids:
             save_track(
-                yandex_music_client,
                 playlist_record,
                 user_tag_prefix,
                 user_save_path,
             )
+            with path_to_saved_ids.open('a+') as file:
+                file.write(playlist_record.id + '\n')
 
 
 def get_download_path(nested_path: str) -> pathlib.Path:
