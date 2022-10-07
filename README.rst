@@ -1,12 +1,13 @@
-======
-Cometa
-======
+		======
+		Cometa
+		======
 
 Artwork organizer. Store your notes, ratings, tags, other meta, linked to the artwork ID (and title). Cometa links ID to text, notation, images, audio and video stored locally or published on web. Cometa backing up media from web.
 
 
-TODO
-====
+		TODO
+		====
+
 - regular backing tracks from Yandex.Music and Youtube.
 - input from clipboard;
 - save and load ID channels, key and other with data file;
@@ -14,16 +15,16 @@ TODO
 - save downloads info to ignore loaded but deleted files.
 
 
-Рейтинг артистов
-================
+		Рейтинг артистов
+		================
 
 Важнее не известность артиста, а "импакт" - то, насколько высоко ставят его люди, знакомые с большим количеством разных треков.
 
 Рейтинг артиста = оценка * вес оценщика (кол-во подтверждённых разных артистов, которых слушал)
 
 
-Добавление обложки в файл со звуком
-===================================
+		Добавление обложки в файл со звуком
+		===================================
 
 
 1. Выбираем файл (JPEG, PNG, TIFF)
@@ -33,19 +34,18 @@ TODO
 4. Сохраняем в jpeg в тэге.
 
 
-Резервирование коллекции
-========================
+		Резервирование коллекции
+		========================
 
 Периодически:
 
-- запросить Яндекс-коллекцию
-- если есть новые
-- скачать новые
-- обработать новые:
-  - rebuild
-  - fix lenght
-  - replay gain
-  - imported
-  - fingerprint
-  - stream hash
-- отправить в базу данных (а стрим - можно и в файлы)
+- подключиться к Yandex Music
+- получить шорт-треки из плейлистов
+- если есть track_id, которых нет в базе:
+	- скачать мету, аудио и обложку
+    - объединить их в файл
+	- добавить в мету файла:
+	  - replay gain
+	  - hash of audio stream (чтобы быстро обнаруживать точные совпадения)
+	  - fingerprint (отслеживать похоие треки)
+	- добавить мету в базу данных (а стрим - можно и в файлы)

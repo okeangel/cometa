@@ -52,7 +52,6 @@ def write_tag(filename, tags: dict):
         'subtitle': TIT3,
         'year': TYER,
         'date': TYER,
-        'yandex_music_track_id': TXXX,
         'original_release_year': TORY,
         'album': mutagen.id3.TALB(encoding=3, text=value),
         'track_number': mutagen.id3.TRCK(encoding=3, text=value),
@@ -66,6 +65,7 @@ def write_tag(filename, tags: dict):
         'artwork': mutagen.id3.APIC(
             encoding=3, mime='image/jpeg', type=3, desc=u'Cover',
             data=open('image.jpg', 'rb').read(),
+        'yandex_music_track_id': TXXX,
         ),
     }
     track = mutagen.id3.ID3(track_file_path, translate=False)

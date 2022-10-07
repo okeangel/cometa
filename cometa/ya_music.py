@@ -97,7 +97,6 @@ def update_id3(track_path, meta, user_tag_prefix):
 
     tags.add(mutagen.id3.TIT2(encoding=3, text=meta['title_combined']))
     tags.add(mutagen.id3.TPE1(encoding=3, text=meta['artists']))
-    tags.add(mutagen.id3.TPUB(encoding=3, text=meta['publisher']))
     if meta['language']:
         tags.add(mutagen.id3.TLAN(encoding=3, text=meta['language']))
     if meta['unsynchronized_lyrics']:
@@ -109,18 +108,25 @@ def update_id3(track_path, meta, user_tag_prefix):
     if meta['genre']:
         tags.add(mutagen.id3.TCON(encoding=3, text=meta['genre']))
     tags.add(mutagen.id3.TPUB(encoding=3, text=meta['labels']))
-    if meta['track_number']:
-        tags.add(mutagen.id3.TRCK(
-            encoding=1,
-            text='{}/{}'.format(meta['track_number'],
-                                meta['tracks_total'])
-        ))
+    if meta.get('track_number'):
+        if meta.get('tracks_total'):
+            tags.add(mutagen.id3.TRCK(
+                encoding=1,
+                text='{}/{}'.format(meta['track_number'],
+                                    meta['tracks_total'])
+            ))
+        else:
+            tags.add(mutagen.id3.TRCK(encoding=1,
+                                      text=str(meta['track_number'])))
     if meta.get('volume_number'):
         tags.add(mutagen.id3.TPOS(
             encoding=3,
             text='{}/{}'.format(meta['volume_number'],
                                 meta['volumes_total'])
         ))
+    tags.add(mutagen.id3.TXXX(encoding=3,
+                              desc='audio_source',
+                              text=meta['audio_source']))
     tags.add(mutagen.id3.TXXX(encoding=3,
                               desc='yandex_music_track_id',
                               text=meta['yandex_music_track_id']))
@@ -180,7 +186,8 @@ def get_album_meta(albums, track=None):
         release_date = earliest_time_string(dates)
         release['release_date'] = earliest_time_string(dates)
 
-        release['track_number'] = album.track_position.index
+        if album.track_position:
+            release['track_number'] = album.track_position.index
         volumes = album.with_tracks().volumes
         if volumes and len(volumes) > 1:
             if track:
@@ -246,6 +253,7 @@ def save_track(
     
     imported_tag_name = '{}_imported'.format(user_tag_prefix)
     meta[imported_tag_name] = playlist_record.timestamp[:19]
+    meta['audio_source'] = 'Yandex Music'
     print(meta)
 
     # save audio stream to content file
@@ -256,13 +264,13 @@ def save_track(
             meta['yandex_music_track_id'],
     ))
     track_path = user_save_path / file_name
-    print(file_name)
 
     # save_yandex_track_meta(track_path, track)
     save_audio(track, track_path)
     update_id3(track_path, meta, user_tag_prefix)
     update_id3_artwork(track_path, track)
 
+    # verify if file is saved
     if not is_saved(user_save_path / (file_name + '.mp3')):
         raise
 
@@ -294,15 +302,22 @@ def save_favorite_tracks(
     saved_ids = load_saved_ids(path_to_saved_ids)
 
     user_save_path.mkdir(parents=True, exist_ok=True)
-    for playlist_record in yandex_music_client.users_likes_tracks():
-        if playlist_record.id not in saved_ids:
-            save_track(
-                playlist_record,
-                user_tag_prefix,
-                user_save_path,
-            )
+    for track_short in yandex_music_client.users_likes_tracks():
+        if track_short.id not in saved_ids:
+            print('https://music.yandex.ru/album/{}/track/{}'.format(
+                track_short.album_id, track_short.id
+            ))
+            try:
+                save_track(
+                    track_short,
+                    user_tag_prefix,
+                    user_save_path,
+                )
+            except yandex_music.exceptions.NetworkError as e:
+                print(e)
+                time.sleep(60)
             with path_to_saved_ids.open('a+') as file:
-                file.write(playlist_record.id + '\n')
+                file.write(track_short.id + '\n')
 
 
 def get_download_path(nested_path: str) -> pathlib.Path:
@@ -321,7 +336,7 @@ def get_download_path(nested_path: str) -> pathlib.Path:
     return downloads.joinpath(nested_path)
 
 
-if __name__ == '__main__':
+def reserve():
     user_tag_prefix = 'sweetall'
     print('User tag prefix:', user_tag_prefix + '_*')
     
@@ -338,3 +353,97 @@ if __name__ == '__main__':
         user_save_path / '_saved_from_yandex_music.txt',
         user_tag_prefix,
     )
+
+
+def win_timedtsmp_to_time_string(timestamp):
+    value = datetime.datetime (1601, 1, 1) + datetime.timedelta(
+        seconds=int(timestamp) / 10000000
+    )
+    return value.isoformat() #strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+
+def merge_mp3_tags_to_imported(track_path, user_tag_prefix):
+    print('Modify', track_path)
+    tags = mutagen.id3.ID3()
+    tags.load(track_path.with_suffix('.mp3'),
+              translate=False)
+    print('ID3 version:', tags.version)
+    tag_version = tags.version[1]
+
+    # remove string time values
+    tags_to_remove = {
+        'sweetall_imported', 'ACCESSED', 'added',
+        'created', 'CREATION_TIME', 'imported', 'imported_win_created',
+        'MODIFIED', '{}_imported'.format(user_tag_prefix),
+    }
+    tag_names = set(s for s in tags_to_remove)
+    tag_names = tag_names.union(set(s.lower() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.upper() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.title() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.capitalize() for s in tags_to_remove))
+
+    dates = []
+    for name in tag_names:
+        id3_name = 'TXXX:{}'.format(name)
+        if tags.get(id3_name):
+            d = str(tags.pop(id3_name))
+            print(id3_name, d)
+            dates.append(d)
+    print(dates)
+    imported = earliest_time_string(dates)
+
+    # remove Windows timestamps
+    tags_to_remove = ['ADDED_TIMESTAMP']
+    tag_names = set(s for s in tags_to_remove)
+    tag_names = tag_names.union(set(s.lower() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.upper() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.title() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.capitalize() for s in tags_to_remove))
+
+    dates = [imported]
+    print(tag_names)
+    for name in tag_names:
+        id3_name = 'TXXX:{}'.format(name)
+        if tags.get(id3_name):
+            ts = str(tags.pop(id3_name))
+            d = win_timedtsmp_to_time_string(ts)
+            print(id3_name, ts, d)
+            dates.append(d)
+    print(dates)
+    imported = earliest_time_string(dates)
+
+    # remove Unix timestamps
+    tags_to_remove = ['imported_win_created_unix_ts']
+    tag_names = set(s for s in tags_to_remove)
+    tag_names = tag_names.union(set(s.lower() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.upper() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.title() for s in tags_to_remove))
+    tag_names = tag_names.union(set(s.capitalize() for s in tags_to_remove))
+
+    dates = [imported]
+    print(tag_names)
+    for name in tag_names:
+        id3_name = 'TXXX:{}'.format(name)
+        if tags.get(id3_name):
+            ts = str(tags.pop(id3_name))
+            d = datetime.datetime.fromtimestamp(float(ts)).isoformat()
+            print(id3_name, ts, d)
+            dates.append(d)
+    print(dates)
+    imported = earliest_time_string(dates)
+
+    tags.add(mutagen.id3.TXXX(
+        encoding=3,
+        desc='{}_imported'.format(user_tag_prefix),
+        text=imported,
+    ))
+
+    # save ID3 to content file
+    tags.save(track_path.with_suffix('.mp3'), v2_version=tag_version)
+
+
+if __name__ == '__main__':
+    reserve()
+    p = pathlib.Path(r'F:\mutagen\test input')
+    for file in p.iterdir():
+        merge_mp3_tags_to_imported(file, 'sweetall')

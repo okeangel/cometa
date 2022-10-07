@@ -29,16 +29,151 @@ id3v2.3 - 66.5%
 id3v1   - 64.9%
 apev2    - 2.9%
 
-    личные тэги:
-sweetall_imported
-sweetall_rating
-sweetall_program
-sweetall_program_track_number
 
-    другие источники тэгов:
+-----------------------------------------
+    yandex music track tags
+
+    common
+title, version -> title_combined
+title -> title
+version -> version
+artists -> artists
+artists_name() -> artists
+artists (join) + version -> main_artist
+
+album.title + album.version -> release_title
+album.artists
+album.release_date, album.original_release_year -> release_date
+album.labels -> publisher
+album.genre -> genre
+album.track_position.index -> track_number
+album.track_position.volume, album.track_count -> tracks_total
+album.track_position.volume -> volume_number
+album.with_tracks().volumes -> volumes_total
+
+    rare
+language -> language
+unsynchronized_lyrics -> unsynchronized_lyrics
+explicit
+is_suitable_for_children
+lyrics_available
+short_description -> description
+album.short_description + album.description -> release_description
+album_type -> release_type
+
+    custom
+id -> yandex_music_track_id
+short.timestamp -> <username>_imported
+
+    retrieve uri
+cover_uri -> artwork
+og_image (OpenGraph preview)
+file_size (нужно сверять с размером аудиодорожки, извлечённой из файла)
+album.download_cover()
+album.cover_uri
+
+    unknown
+major -> ? copyright ?
+normalization -> ? replay_gain ?
+filename
+meta_data
+content_warning
+poetry_lover_matches
+best
+real_id
+type
+storage_dir
+substitute
+matched_track
+error
+can_publish
+state
+desired_visibility
+user_info
+regions
+available_as_rbt
+remember_position
+album.error
+album.start_date
+album.very_important
+
+    no need
+duration_ms
+available (для прослушивания)
+available_for_premium_users
+available_full_without_permission
+preview_duration_ms
+background_video_uri
+
+album.available
+album.likes_count
+album.bests
+
+
+
+-------------------------------
+    yandex music track methods
+
+.dislike()
+.like()
+.get_download_info()
+.get_supplement()
+
+
+
+-------------------------------------
+    foobar interpretation
+
+main_artist -> artist
+title_combined -> title
+release_date -> date
+album artist, ALBUMARTIST -> album artist
+album_title -> album
+track_number -> TRACKNUMBER
+tracks_total -> TOTALTRACKS
+volume_number -> DISCNUMBER
+volumes_total -> TOTALDISCS
+TRAKTOR*
+
+    важные тэги
+
+SOURCE, DISTRIBUTION -> audio_source (источник, с которого снят аудиосигнал)
+STYLESORTORDER, STYLE
+WWW
+COMPOSER
+LYRICIST
+PERFORMER
+LOCATION
+COMMENT, COMMENT COMMENT, COMMENT ID3V1 COMMENT
+COPYRIGHT ?, LABEL, 'LABELS	' -> publisher
+QUALITY
+TEMPO, BPM
+COUNTRY -> location
+SCRIPT -> language
+
+ORIGINAL DATE, ORIGINAL RELEASE DATE, ORIGINAL RELEASE TIME, ORIGINAL YEAR, ORIGINALDATE, ORIGINALYEAR, RELEASE DATE, RELEASED, TRAKTORRELEASEDATE, TYER, YEAR - release_date
+
+    личные тэги:
+<username>_imported
+RATING -> <username>_rating
+PROGRAM -> <username>_program
+PROGRAMNUMBER -> <username>_program_track_number
+DJTOOL
+STATUS
+TAGS
+
+    источники тэгов:
+yandex_music_
 itunes
-discogs
-musicbrainz
+discogs_
+musicbrainz_
+accuraterip*
+acoustic id
+acoustic_id
+allmusic
+fmps
+mp3gain
+serato_
 
     тэги, связанные с треком в коллекции foobar2000:
 played
@@ -48,33 +183,27 @@ added
 rating
 
 
+PLAY_COUNT
 
-функция, чтобы выбрать минимальное из значений:
-  - сперва проверить, что значения подходят к шаблону
-    - если нет - то нужно предложить ввести исправленное значение
-	  - если введенё '' - то пропустить значение и продолжить перебор
 
-.lower()
-.upper()
-.title()
-.capitalize()
 
-    тэги трека:
-sweetall_imported
-accessed
-added
-created
-creation_time
-imported
-imported_win_created
-imported_win_created_unix_ts
+        Сведение тэгов воедино:
 
-    свойства файла:
+1. Добавить эти тэги:
+        winsows timestamp to save to time_string
+FIRST_PLAYED_TIMESTAMP
+LAST_PLAYED_TIMESTAMP
+
+        свойства файла:
 Path(path_to_track_file).stat().st_mtime
 Path(path_to_track_file).stat().st_ctime
 
-    тэги, связанные с треком в коллекции foobar2000:
-added
-created
-созданные мною
+
+2. Единый формат id3:
+  - 2.4 или 2.3?
+    - какова между ними разница?
+    - какие значения изщменяются при конвертации?
+        - как уберечь дату - видимо, pop, convert, add
+  - сохраняем или удаляем v1?
+    - комменты несовместимы. Либо удаляем, либо удаляем целиком v1
 
