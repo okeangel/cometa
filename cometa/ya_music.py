@@ -1,16 +1,44 @@
 #! /usr/bin/env python3
 
+import configparser
 import os
 import pathlib
 import time
 import datetime
 import re
-import json
 
 import mutagen.mp3
 import mutagen.id3
 import yandex_music
-import jsbeautifier
+
+
+class Config(configparser.ConfigParser):
+    def __init__(self):
+        super().__init__()
+        self.path = pathlib.Path.home().joinpath('yandex_music.ini')
+        if self.path.is_file():
+            self.read(self.path)
+        else:
+            self.init()
+
+    def create():
+        input("""
+Сейчас откроется Chrome, а в нём - страница Яндекс.Музыки.
+Если страница требует авторизации - то нужно пройти её. Логин, пароль, код,
+и всё остальное. Пока не появится главна страница Яндекс.Музыки.
+Когда страница музыки полностью появилась - закрывайте браузер,
+и Cometa продолжит свою работу.
+""")
+
+    def save(self):
+        if not 'GUI' in self:
+            self.add_section('GUI')
+        self.set('GUI', 'width', str(self.app.winfo_width()))
+        self.set('GUI', 'height', str(self.app.winfo_height()))
+        self.set('GUI', 'x', str(self.app.winfo_x()))
+        self.set('GUI', 'y', str(self.app.winfo_y()))
+        with open(self.path, 'w+') as configfile:
+            self.write(configfile)
 
 
 def save_yandex_track_meta(track_path, track):
