@@ -5,15 +5,17 @@ import os
 
 def fetch_user_token():
     if os.name == 'nt':
-        import winreg            
-        subkey = r'htmlfile\shell\open\command'
-        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, subkey) as key:
-            dbrowser_path = winreg.QueryValueEx(key, '')[0]
         browser_path = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
     else:
         browser_path = '/opt/google/chrome/chrome'
     print(dbrowser_path)
     print(browser_path)
+
+os.getenv('APPDATA') + '\Google\Chrome\User Data'
+pathlub.Path.home()./Library/Application Support/Google/Chrome
+~/.config/google-chrome
+
+chrome_debug
 
     url = 'https://oauth.yandex.ru/authorize'
     query = '?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d'
