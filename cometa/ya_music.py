@@ -90,9 +90,10 @@ def save_artwork(track, track_path):
         try:
             track.download_cover(track_path, size='1000x1000')
         except AttributeError:
-            track.download_cover(track_path)
-        except AttributeError as e:
-            print(f"{track_path} failed to download the cover:\n{e}")
+            try:
+                track.download_cover(track_path)
+            except AttributeError as e:
+                print(f"{track_path} failed to download the cover:\n{e}")
 
 
 def update_id3_artwork(track_path, track):
@@ -104,14 +105,18 @@ def update_id3_artwork(track_path, track):
         tags = mutagen.id3.ID3(track_path)
     except mutagen.id3._util.ID3NoHeaderError as e:
         tags = mutagen.id3.ID3()
-    tags.add(mutagen.id3.APIC(
-        encoding=3, mime='image/jpeg', type=3, desc=u'Cover',
-        data=artwork_path.read_bytes(),
-    ))
+    try:
+        tags.add(mutagen.id3.APIC(
+            encoding=3, mime='image/jpeg', type=3, desc=u'Cover',
+            data=artwork_path.read_bytes(),
+        ))
+    except FileNotFoundError as e:
+        print('Failed to add artwork: {}'.format(e))
+
     tags.save(track_path)
 
     # delete temp artwork file
-    artwork_path.unlink()
+    artwork_path.unlink(missing_ok=True)
 
 
 def update_id3(track_path, meta, user_tag_prefix):
@@ -390,19 +395,38 @@ def win_timedtsmp_to_time_string(timestamp):
     return value.isoformat() #strftime('%Y-%m-%dT%H:%M:%S.%f')
 
 
-def merge_mp3_tags_to_imported(track_path, user_tag_prefix):
-    print('Modify', track_path)
+def normalize_time_string(ts):
+    ts = ts.strip()
+    ts = ts.removesuffix('.000000').removesuffix('.000')
+    ts = ts.removesuffix('00:00:00').removesuffix('T')
+    ts = ts.removesuffix('-00').removesuffix('-00')
+    if ts == '0000':
+        return '9999'
+    return ts
+
+
+def merge_mp3_tags_to_imported(track_path,
+                               user_tag_prefix,
+                               update_id3_version=False):
+    if track_path.suffix != '.mp3':
+        return None
+    print('\n    ', track_path)
     tags = mutagen.id3.ID3()
-    tags.load(track_path.with_suffix('.mp3'),
-              translate=False)
-    print('ID3 version:', tags.version)
+    try:
+        tags.load(track_path,
+                  translate=False)
+    except mutagen.id3._util.ID3NoHeaderError:
+        print('File have no ID# tags')
     tag_version = tags.version[1]
+
+    target_tag_name = '{}_imported'.format(user_tag_prefix)
+    current_imported = tags.get('TXXX:{}'.format(target_tag_name))
 
     # remove string time values
     tags_to_remove = {
-        'sweetall_imported', 'ACCESSED', 'added',
+        target_tag_name, 'ACCESSED', 'added',
         'created', 'CREATION_TIME', 'imported', 'imported_win_created',
-        'MODIFIED', '{}_imported'.format(user_tag_prefix),
+        'MODIFIED',
     }
     tag_names = set(s for s in tags_to_remove)
     tag_names = tag_names.union(set(s.lower() for s in tags_to_remove))
@@ -415,10 +439,8 @@ def merge_mp3_tags_to_imported(track_path, user_tag_prefix):
         id3_name = 'TXXX:{}'.format(name)
         if tags.get(id3_name):
             d = str(tags.pop(id3_name))
-            print(id3_name, d)
-            dates.append(d)
-    print(dates)
-    imported = earliest_time_string(dates)
+            print(id3_name, d, ' -> ', normalize_time_string(d))
+            dates.append(normalize_time_string(d))
 
     # remove Windows timestamps
     tags_to_remove = ['ADDED_TIMESTAMP']
@@ -428,17 +450,13 @@ def merge_mp3_tags_to_imported(track_path, user_tag_prefix):
     tag_names = tag_names.union(set(s.title() for s in tags_to_remove))
     tag_names = tag_names.union(set(s.capitalize() for s in tags_to_remove))
 
-    dates = [imported]
-    print(tag_names)
     for name in tag_names:
         id3_name = 'TXXX:{}'.format(name)
         if tags.get(id3_name):
             ts = str(tags.pop(id3_name))
             d = win_timedtsmp_to_time_string(ts)
-            print(id3_name, ts, d)
+            print(id3_name, d)
             dates.append(d)
-    print(dates)
-    imported = earliest_time_string(dates)
 
     # remove Unix timestamps
     tags_to_remove = ['imported_win_created_unix_ts']
@@ -448,30 +466,74 @@ def merge_mp3_tags_to_imported(track_path, user_tag_prefix):
     tag_names = tag_names.union(set(s.title() for s in tags_to_remove))
     tag_names = tag_names.union(set(s.capitalize() for s in tags_to_remove))
 
-    dates = [imported]
-    print(tag_names)
     for name in tag_names:
         id3_name = 'TXXX:{}'.format(name)
         if tags.get(id3_name):
             ts = str(tags.pop(id3_name))
             d = datetime.datetime.fromtimestamp(float(ts)).isoformat()
-            print(id3_name, ts, d)
+            print(id3_name, d)
             dates.append(d)
+
+    dates.append(datetime.datetime.fromtimestamp(
+        float(track_path.stat().st_ctime)).isoformat())
+    dates.append(datetime.datetime.fromtimestamp(
+        float(track_path.stat().st_mtime)).isoformat())
+
     print(dates)
-    imported = earliest_time_string(dates)
+    new_imported = earliest_time_string(dates)
+    print(current_imported, ' -> ', new_imported)
 
-    tags.add(mutagen.id3.TXXX(
-        encoding=3,
-        desc='{}_imported'.format(user_tag_prefix),
-        text=imported,
-    ))
+    if current_imported != new_imported or len(dates) != 3:
+        print('Need to update sweetall_imported.')
+        if tags.version[1] < 3:
+            tags.update_to_v24()
+            tag_version = 4
+        tags.add(mutagen.id3.TXXX(
+            encoding=3,
+            desc=target_tag_name,
+            text=new_imported,
+        ))
 
-    # save ID3 to content file
-    tags.save(track_path.with_suffix('.mp3'), v2_version=tag_version)
+        # save ID3 to content file
+        print('ID3V2 version:', tags.version[1])
+        tags.save(track_path, v2_version=tag_version)
+
+
+def update_tag_imported(p):
+    for nested_path in pathlib.Path(p).iterdir():
+        if nested_path.is_dir():
+            update_tag_imported(nested_path)
+        elif nested_path.suffix == '.mp3':
+            merge_mp3_tags_to_imported(nested_path, 'sweetall')
 
 
 if __name__ == '__main__':
     reserve()
-    p = pathlib.Path(r'F:\mutagen\test input')
-    for file in p.iterdir():
-        merge_mp3_tags_to_imported(file, 'sweetall')
+
+    music = [
+        r'E:\downloads',
+        r'E:\YandexDisk\DJ Full Tracks',
+        r'E:\YandexDisk\DJ Tool Tracks',
+        r'E:\YandexDisk\mixtapes',
+        r'E:\YandexDisk\music',
+    ]
+
+
+"""
+    TODO:
+
+- Update_tag_imported for FLAC, Vorbis, iTunes M4A, WMA, Opus
+
+- detect distinct tracks by expression:
+  track_string_id = ' '.join([title, version, artists])
+  track_string_id.translate({ord(i): None for i in '.,:'})
+                 .leave only lower letter + numbers sep by spaces
+
+- create SQLite Table and link track_string_id, yandex_id, shazam_id
+
+2. Get a sound from every track and fingerpint it
+   https://github.com/jiaaro/pydub
+
+
+
+"""
