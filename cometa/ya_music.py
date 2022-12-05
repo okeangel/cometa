@@ -369,12 +369,13 @@ def get_download_path(nested_path: str) -> pathlib.Path:
     return downloads.joinpath(nested_path)
 
 
-def reserve():
+def reserve(music_path):
     user_tag_prefix = 'sweetall'
     print('User tag prefix:', user_tag_prefix + '_*')
     
-    user_save_subdir = '!Cometa'
-    user_save_path = get_download_path(user_save_subdir)
+    user_save_subdir = '!!Imported'
+    # user_save_path = get_download_path(user_save_subdir)
+    user_save_path = pathlib.Path(music_path).joinpath(user_save_subdir)
     print('Download to:', user_save_path)
 
     user_token = 'AQAAAAABXPQDAAG8XnMPg_r6L0JCtc_Ehhrs-hA'
@@ -497,6 +498,8 @@ def merge_mp3_tags_to_imported(track_path,
         # save ID3 to content file
         print('ID3V2 version:', tags.version[1])
         tags.save(track_path, v2_version=tag_version)
+        print('-' * 80)
+        print()
 
 
 def update_tag_imported(p):
@@ -508,7 +511,8 @@ def update_tag_imported(p):
 
 
 if __name__ == '__main__':
-    reserve()
+    music_path = r'E:\YandexDisk\music'
+    reserve(music_path)
 
     music = [
         r'E:\downloads',
