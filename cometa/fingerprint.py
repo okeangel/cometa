@@ -1,15 +1,30 @@
-import subprocess
-import numpy
 import pathlib
+import subprocess
 import multiprocessing
 import pickle
+import json
 
+import time
+import random
+
+import numpy
 import tqdm
 
 
+test = False
+
+if test:
+    music_dir = pathlib.Path(r'F:\mocking_data\music\music_in')
+    dump_path = pathlib.Path(r'F:\mocking_data\music\fingerprints.pickle')
+    corrs_path = pathlib.Path(r'F:\mocking_data\music\correlations.json')
+else:
+    music_dir = pathlib.Path(r'E:\YandexDisk\music')
+    dump_path = pathlib.Path(r'E:\YandexDisk\musicdb\fingerprints.pickle')
+    corrs_path = pathlib.Path(r'E:\YandexDisk\musicdb\correlations.json')
+
 # seconds to sample audio file for
 sample_time = 500  # number of points to scan cross correlation over
-span = 150  # step size (in points) of cross correlation
+span = 0#150  # step size (in points) of cross correlation
 step = 1  # minimum number of points that must overlap in cross correlation
 
 # exception is raised if this cannot be met
@@ -64,8 +79,8 @@ def cross_correlation(listx, listy, offset):
         listy = listy[offset:]      
         listx = listx[:len(listy)]
 
-    if min(len(listx), len(listy)) < min_overlap:
-        raise Exception('Overlap too small: %i' % min(len(listx), len(listy)))
+    #if min(len(listx), len(listy)) < min_overlap:
+    #    raise Exception('Overlap too small: %i' % min(len(listx), len(listy)))
 
     # cross correlate listx and listy with offsets from -span to span
     return correlation(listx, listy)  
@@ -73,7 +88,6 @@ def cross_correlation(listx, listy, offset):
 
 def compare(listx, listy, span, step):  
     if span > min(len(listx), len(listy)):
-
     # Error checking in main program should prevent us from ever being      
     # able to get here.     
         raise Exception(
@@ -86,7 +100,6 @@ def compare(listx, listy, span, step):
     for offset in numpy.arange(-span, span + 1, step):      
         corr_xy.append(cross_correlation(listx, listy, offset))
 
-    # return index of maximum value in list
     return corr_xy
 
 
@@ -100,7 +113,7 @@ def max_index(listx):
     return max_index
 
 
-def get_max_corr(corr, source, target): 
+def print_max_corr(corr, source_path, target_path): 
     max_corr_index = max_index(corr)    
     max_corr_offset = -span + max_corr_index * step
 
@@ -110,11 +123,14 @@ def get_max_corr(corr, source, target):
     if corr[max_corr_index] > threshold:
         print((
             '%s and %s match with correlation of %.4f at offset %i' % (
-                source, target, corr[max_corr_index], max_corr_offset
+                source_path, target_path, corr[max_corr_index], max_corr_offset
             )
         ))
 
-def correlate(source, target):  
+
+def print_correlation(source_path, target_path):
+    fingerprint_source = calculate_fingerprints(source_path)
+    fingerprint_target = calculate_fingerprints(target_path)
     corr = compare(fingerprint_source, fingerprint_target, span, step)
 
     print(f'duration_source = {duration_source}, duration_target = {duration_target}')
@@ -123,7 +139,24 @@ def correlate(source, target):
     ratio_target = len(fingerprint_target) / duration_target
     print(f'ratio_source = {ratio_source}, ratio_target = {ratio_target}')
 
-    get_max_corr(corr, source, target)  
+    print_max_corr(corr, source_path, target_path)
+
+
+def get_max_correlation(pair):
+    correlations = compare(pair[0]['chp_fingerprint'],
+                           pair[1]['chp_fingerprint'],
+                           span, step)
+    max_corr_index = max_index(correlations)
+
+    max_corr_value = correlations[max_corr_index]
+    max_corr_offset = -span + max_corr_index * step
+    pair = [
+        pair[0]['path'],
+        pair[1]['path'],
+        max_corr_value,
+        max_corr_offset,
+    ]
+    return pair
 
 
 def count_extentions(paths):
@@ -156,7 +189,7 @@ def get_fingerprints(files):
     # pool.close()
     # pool.join()
     # process_bar.close()
-    return results
+    return [file for file in results if file['chp_fingerprint']]
 
 
 def dump_file_data(path, files):
@@ -184,22 +217,63 @@ def dump_music_dir_fingerprints(dir_to_scan, path_to_dump):
     print('No new tasks. Process terminated.')
 
 
-def get_pairs(files):
+def get_correlations(files):
+    print('================ Calculaing correlations started. ================')
+    pairs_expected = (len(files)**2 - len(files)) // 2
+    time_expected = pairs_expected / 27000 * 16.4375 / 3600
+    print('Expected number of pairs:', pairs_expected)
+    print('Expected time: {time_expected:.03f} hours')
+
     pairs = []
-    pairs_estimate = (len(files)**2) / 2 - len(files)
-    print(pairs_estimate)
-    for index, file_a in enumerate(files):
+    for index, file_a in enumerate(files, 1):
+        pairs_chunk = []
         for file_b in files[index:]:
-            pairs.append([file_a, file_b])
-        print(len(pairs), 'done')
+            pairs_chunk.append([file_a, file_b])
+
+        print(f'Iteration: {index:5}  |  ', end='')
+        start = time.time()
+
+        with multiprocessing.Pool() as pool:
+            results_chunk = pool.map(get_max_correlation, pairs_chunk)
+
+        elapsed = time.time() - start
+        print(f'Elapsed: {elapsed:8.3f} s  |  ', end='')
+        performance = len(results_chunk) / elapsed
+        print(f'Performance: {performance:5.0f} correlations/s')
+
+        pairs.extend(results_chunk)
+    print('=============== Calculaing correlations finished. ================')
     return pairs
 
 
+def handle_1(dump_path, corrs_dump_path):
+    #files = load_file_data(dump_path)
+    files = [file for file in load_file_data(dump_path) if file['chp_fingerprint']]
+    print('Total audio fingerprints:', len(files))
+    files[:] = random.sample(files, 5)
+    corrs = get_correlations(files)
+    corrs = [file[2] for file in corrs]
+    corrs.sort(reverse=True)
+    with open(corrs_dump_path, 'w') as file:
+        json.dump(corrs, file)
+        print(f'Correlation data saved to {corrs_dump_path}.')
+    #for i in range(25, 31):
+    #    print(len(get_correlations(short[:1000*i])))
+
+
+def overview_audio_files(dump_path):
+    paths = [file['path'] for file in load_file_data(dump_path)]
+    print('Audio detected in files with extentions:')
+    print(count_extentions(paths))
+
+    music_exts = ['.mp3', '.flac', '.m4a', '.ogg', '.mka', '.wma']
+    unexpected_files = [path for path in paths if path.suffix not in music_exts]
+    if unexpected_files:
+        print('Files with unexpected audio:')
+        [print(path) for path in unexpected_files]
+
+
 if __name__ == "__main__":
-    music_dir = pathlib.Path(r'E:\YandexDisk\music')
-    dump_path = pathlib.Path(r'E:\YandexDisk\musicdb\fingerprints.pickle')
-    # dump_music_dir_fingerprints(music_dir, dump_path)
-    # TODO: experiment with chunksize=pool._pool * 40
-    files = load_file_data(dump_path)
-    print(len(files))
-    print(len(get_pairs(files)))
+    dump_music_dir_fingerprints(music_dir, dump_path)
+    #overview_audio_files(dump_path)
+    #handle_1(dump_path, corrs_path)
