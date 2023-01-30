@@ -10,9 +10,12 @@ import random
 import numpy
 import tqdm
 
+import config
+
 
 test = False
 
+"""
 if test:
     music_dirs = [
         pathlib.Path(r'F:\mocking_data\music\music_in'),
@@ -26,6 +29,7 @@ else:
     ]
     dump_path = pathlib.Path(r'F:\Natalia\Music Data\fingerprints.pickle')
     corrs_path = pathlib.Path(r'F:\Natalia\Music Data\correlations.json')
+"""
 
 # seconds to sample audio file for
 sample_time = 500  # number of points to scan cross correlation over
@@ -35,7 +39,7 @@ step = 1  # minimum number of points that must overlap in cross correlation
 # exception is raised if this cannot be met
 min_overlap = 20  # report match when cross correlation has a peak
 # exceeding threshold
-threshold = 0.0
+threshold = 0.6
 
 
 def calculate_fingerprint(file):
@@ -143,6 +147,8 @@ def print_max_corr(corr, source_path, target_path):
                 )
             )
         )
+    else:
+        print('No statistically significant correlation was found.')
 
 
 def print_correlation(source_path, target_path):
