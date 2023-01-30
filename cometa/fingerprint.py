@@ -14,13 +14,18 @@ import tqdm
 test = False
 
 if test:
-    music_dir = pathlib.Path(r'F:\mocking_data\music\music_in')
+    music_dirs = [
+        pathlib.Path(r'F:\mocking_data\music\music_in'),
+    ]
     dump_path = pathlib.Path(r'F:\mocking_data\music\fingerprints.pickle')
     corrs_path = pathlib.Path(r'F:\mocking_data\music\correlations.json')
 else:
-    music_dir = pathlib.Path(r'E:\YandexDisk\music')
-    dump_path = pathlib.Path(r'E:\YandexDisk\musicdb\fingerprints.pickle')
-    corrs_path = pathlib.Path(r'E:\YandexDisk\musicdb\correlations.json')
+    music_dirs = [
+        pathlib.Path(r'F:\Natalia\Google Диск\Music_Roaming'),
+        pathlib.Path(r'F:\Natalia\Music'),
+    ]
+    dump_path = pathlib.Path(r'F:\Natalia\Music Data\fingerprints.pickle')
+    corrs_path = pathlib.Path(r'F:\Natalia\Music Data\correlations.json')
 
 # seconds to sample audio file for
 sample_time = 500  # number of points to scan cross correlation over
@@ -170,11 +175,12 @@ def count_extentions(paths):
     return exts
 
 
-def get_paths(basic_path):
+def get_paths(basic_paths):
     paths = []
-    for p in basic_path.rglob("*"):
-        if p.is_file():
-            paths.append(p)
+    for dir in basic_paths:
+        for p in dir.rglob("*"):
+            if p.is_file():
+                paths.append(p)
     return paths
 
 
@@ -203,9 +209,9 @@ def load_file_data(path):
     return files
 
 
-def dump_music_dir_fingerprints(dir_to_scan, path_to_dump):
+def dump_music_dir_fingerprints(dirs_to_scan, path_to_dump):
     print('Collecting file paths...')
-    files = [{'path': p} for p in get_paths(dir_to_scan)]
+    files = [{'path': p} for p in get_paths(dirs_to_scan)]
     print(f'Done. Files found: {len(files)}.')
 
     print('Creating audio fingerprints...')
@@ -222,7 +228,7 @@ def get_correlations(files):
     pairs_expected = (len(files)**2 - len(files)) // 2
     time_expected = pairs_expected / 27000 * 16.4375 / 3600
     print('Expected number of pairs:', pairs_expected)
-    print('Expected time: {time_expected:.03f} hours')
+    print(f'Expected time: {time_expected:.03f} hours')
 
     pairs = []
     for index, file_a in enumerate(files, 1):
@@ -247,13 +253,15 @@ def get_correlations(files):
 
 
 def handle_1(dump_path, corrs_dump_path):
-    #files = load_file_data(dump_path)
-    files = [file for file in load_file_data(dump_path) if file['chp_fingerprint']]
+    files = load_file_data(dump_path)
+    for file in files:
+        file['path'] = str(file['path'])
+    #files = [file for file in load_file_data(dump_path) if file['chp_fingerprint']]
     print('Total audio fingerprints:', len(files))
-    files[:] = random.sample(files, 5)
+    # files[:] = random.sample(files, 5)
     corrs = get_correlations(files)
-    corrs = [file[2] for file in corrs]
-    corrs.sort(reverse=True)
+    #corrs = [file[2] for file in corrs]
+    #corrs.sort(reverse=True)
     with open(corrs_dump_path, 'w') as file:
         json.dump(corrs, file)
         print(f'Correlation data saved to {corrs_dump_path}.')
@@ -274,6 +282,6 @@ def overview_audio_files(dump_path):
 
 
 if __name__ == "__main__":
-    dump_music_dir_fingerprints(music_dir, dump_path)
+    dump_music_dir_fingerprints(music_dirs, dump_path)
     #overview_audio_files(dump_path)
     #handle_1(dump_path, corrs_path)
