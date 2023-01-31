@@ -13,32 +13,22 @@ import tqdm
 import config
 
 
-test = False
-
-"""
-if test:
-    music_dirs = [
-        pathlib.Path(r'F:\mocking_data\music\music_in'),
-    ]
-    dump_path = pathlib.Path(r'F:\mocking_data\music\fingerprints.pickle')
-    corrs_path = pathlib.Path(r'F:\mocking_data\music\correlations.json')
-else:
-    music_dirs = [
-        pathlib.Path(r'F:\Natalia\Google Диск\Music_Roaming'),
-        pathlib.Path(r'F:\Natalia\Music'),
-    ]
-    dump_path = pathlib.Path(r'F:\Natalia\Music Data\fingerprints.pickle')
-    corrs_path = pathlib.Path(r'F:\Natalia\Music Data\correlations.json')
-"""
-
 # seconds to sample audio file for
-sample_time = 500  # number of points to scan cross correlation over
-span = 0  # 150  # step size (in points) of cross correlation
-step = 1  # minimum number of points that must overlap in cross correlation
+sample_time = 500
 
+# number of points to scan cross correlation over
+span = 0  # 150
+
+# step size (in points) of cross correlation
+step = 1
+
+# minimum number of points that must overlap in cross correlation
 # exception is raised if this cannot be met
-min_overlap = 20  # report match when cross correlation has a peak
-# exceeding threshold
+min_overlap = 20
+
+# If cross-correlation peaked below this threshold
+# then files are not considered a match.
+# If above then files may be (but need not be) a duplicate.
 threshold = 0.6
 
 
@@ -65,59 +55,64 @@ def calculate_fingerprint(file):
     return file
 
 
-def correlation(listx, listy):
-    if not listx or not listy:
+def correlation(nums_a, nums_b):
+    """Return correlation between lists of numbers"""
+
+    if not nums_a or not nums_b:
+        # Error checking in main program should prevent us from ever being
+        # able to get here.
         raise Exception('Empty lists cannot be correlated.')
 
-    if len(listx) > len(listy):
-        listx = listx[: len(listy)]
-    elif len(listx) < len(listy):
-        listy = listy[: len(listx)]
+    # Shortening a longer sequence
+    if len(nums_a) > len(nums_b):
+        nums_a = nums_a[: len(nums_b)]
+    elif len(nums_a) < len(nums_b):
+        nums_b = nums_b[: len(nums_a)]
 
     covariance = 0
-    for i in range(len(listx)):
-        covariance += 32 - bin(listx[i] ^ listy[i]).count('1')
-    covariance = covariance / float(len(listx))
+    for i in range(len(nums_a)):
+        covariance += 32 - bin(nums_a[i] ^ nums_b[i]).count('1')
+    covariance = covariance / float(len(nums_a))
     return covariance / 32
 
 
-def cross_correlation(listx, listy, offset):
+def cross_correlation(nums_a, nums_b, offset):
     if offset > 0:
-        listx = listx[offset:]
-        listy = listy[: len(listx)]
+        nums_a = nums_a[offset:]
+        nums_b = nums_b[: len(nums_a)]
     elif offset < 0:
         offset = -offset
-        listy = listy[offset:]
-        listx = listx[: len(listy)]
+        nums_b = nums_b[offset:]
+        nums_a = nums_a[: len(nums_b)]
 
-    # if min(len(listx), len(listy)) < min_overlap:
-    #    raise Exception('Overlap too small: %i' % min(len(listx), len(listy)))
+    if min(len(nums_a), len(nums_b)) < min_overlap:
+        raise Exception('Overlap too small: %i' % min(len(nums_a), len(nums_b)))
 
-    # cross correlate listx and listy with offsets from -span to span
-    return correlation(listx, listy)
+    # cross correlate nums_a and nums_b with offsets from -span to span
+    return correlation(nums_a, nums_b)
 
 
-def compare(listx, listy, span, step):
-    if span > min(len(listx), len(listy)):
+def compare(nums_a, nums_b, span, step):
+    if span > min(len(nums_a), len(nums_b)):
         # Error checking in main program should prevent us from ever being
         # able to get here.
         raise Exception(
             'span >= sample size: %i >= %i\n'
-            % (span, min(len(listx), len(listy)))
+            % (span, min(len(nums_a), len(nums_b)))
             + 'Reduce span, reduce crop or increase sample_time.'
         )
 
-    corr_xy = []
+    corr_ab = []
     for offset in numpy.arange(-span, span + 1, step):
-        corr_xy.append(cross_correlation(listx, listy, offset))
+        corr_ab.append(cross_correlation(nums_a, nums_b, offset))
 
-    return corr_xy
+    return corr_ab
 
 
-def max_index(listx):
+def max_index(nums_a):
     max_index = 0
-    max_value = listx[0]
-    for i, value in enumerate(listx):
+    max_value = nums_a[0]
+    for i, value in enumerate(nums_a):
         if value > max_value:
             max_value = value
             max_index = i
@@ -209,34 +204,34 @@ def get_paths(basic_paths):
 
 
 def get_fingerprints(files):
-    # with multiprocessing.Pool() as pool:
-    #     results = pool.map(calculate_fingerprint, files)
     pool = multiprocessing.Pool()
     results = []
     for result in tqdm.tqdm(
         pool.imap_unordered(calculate_fingerprint, files), total=len(files)
     ):
         results.append(result)
-    # pool.close()
-    # pool.join()
-    # process_bar.close()
     return [file for file in results if file['chp_fingerprint']]
 
 
-def dump_file_data(path, files):
-    with open(path, 'wb') as datafile:
-        pickle.dump(files, datafile)
+def dump_file_data(music_data_dir, files):
+    dump_path = music_data_dir.joinpath('fingerprints.pickle')
+    with dump_path.open('wb') as dump_file:
+        pickle.dump(files, dump_file)
+    print(f'Audio fingerprints saved to "{dump_path}".')
 
 
-def load_file_data(path):
-    with open(path, 'rb') as datafile:
-        files = pickle.load(datafile)
+def load_file_data(music_data_dir):
+    dump_path = music_data_dir.joinpath('fingerprints.pickle')
+    with dump_path.open('rb') as dump_file:
+        files = pickle.load(dump_file)
+    print(f'Audio fingerprints loaded from "{dump_path}".')
     return files
 
 
 def dump_music_dir_fingerprints(dirs_to_scan, path_to_dump):
     print('Collecting file paths...')
     files = [{'path': p} for p in get_paths(dirs_to_scan)]
+
     print(f'Done. Files found: {len(files)}.')
 
     print('Creating audio fingerprints...')
@@ -244,15 +239,13 @@ def dump_music_dir_fingerprints(dirs_to_scan, path_to_dump):
     print('Done.')
 
     dump_file_data(path_to_dump, files)
-    print(f'Audio fingerprints saved to "{path_to_dump}".')
-    print('No new tasks. Process terminated.')
 
 
 def get_correlations(files):
     print('================ Calculaing correlations started. ================')
     pairs_expected = (len(files) ** 2 - len(files)) // 2
     time_expected = pairs_expected / 27000 * 16.4375 / 3600
-    print('Expected number of pairs:', pairs_expected)
+    print(f'Expected number of pairs: {pairs_expected:,}')
     print(f'Expected time: {time_expected:.03f} hours')
 
     pairs = []
@@ -277,25 +270,21 @@ def get_correlations(files):
     return pairs
 
 
-def handle_1(dump_path, corrs_dump_path):
-    files = load_file_data(dump_path)
+def handle_1(music_data_dir):
+    files = load_file_data(music_data_dir)
     for file in files:
         file['path'] = str(file['path'])
-    # files = [file for file in load_file_data(dump_path) if file['chp_fingerprint']]
     print('Total audio fingerprints:', len(files))
-    # files[:] = random.sample(files, 5)
     corrs = get_correlations(files)
-    # corrs = [file[2] for file in corrs]
-    # corrs.sort(reverse=True)
-    with open(corrs_dump_path, 'w') as file:
+
+    corrs_path = music_data_dir.joinpath('correlations.json')
+    with corrs_path.open('w') as file:
         json.dump(corrs, file)
-        print(f'Correlation data saved to {corrs_dump_path}.')
-    # for i in range(25, 31):
-    #    print(len(get_correlations(short[:1000*i])))
+        print(f'Correlation data saved to "{corrs_path}".')
 
 
-def overview_audio_files(dump_path):
-    paths = [file['path'] for file in load_file_data(dump_path)]
+def overview_audio_files(music_data_dir):
+    paths = [file['path'] for file in load_file_data(music_data_dir)]
     print('Audio detected in files with extentions:')
     print(count_extentions(paths))
 
@@ -309,6 +298,7 @@ def overview_audio_files(dump_path):
 
 
 if __name__ == '__main__':
-    dump_music_dir_fingerprints(music_dirs, dump_path)
-    # overview_audio_files(dump_path)
-    # handle_1(dump_path, corrs_path)
+    print(config.music_dirs, config.music_data_dir)
+    #dump_music_dir_fingerprints(config.music_dirs, config.music_data_dir)
+    #overview_audio_files(config.music_data_dir)
+    #handle_1(config.music_data_dir)
