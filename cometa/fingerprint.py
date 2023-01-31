@@ -22,7 +22,7 @@ step = 1
 
 # minimum number of points that must overlap in cross correlation
 # exception is raised if this cannot be met
-min_overlap = 20
+min_overlap = 0  # 20
 
 # If cross-correlation peaked below this threshold
 # then files are not considered a match.
