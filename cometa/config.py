@@ -77,7 +77,7 @@ def get_config(userdata_path):
         config = configparser.ConfigParser()
         config.read(config_path)
         collection_names = config.sections()
-        print('Known kollections:', ', '.join(collection_names))
+        print('Known collections:', ', '.join(collection_names))
         print('Input the name of the collection to be processed:')
         while True:
             collection_name = input()
@@ -117,6 +117,3 @@ def update_config(config_path, collection_name, music_dirs, music_data_dir):
         config.write(configfile)
     return config
 
-
-userdata_path, localdata_path = get_data_paths()
-music_dirs, music_data_dir = get_config(userdata_path)
