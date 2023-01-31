@@ -1,31 +1,32 @@
-		======
-		Cometa
-		======
+
+Cometa
+======
 
 Artwork organizer. Store your notes, ratings, tags, other meta, linked to the artwork ID (and title). Cometa links ID to text, notation, images, audio and video stored locally or published on web. Cometa backing up media from web.
 
 
-		TODO
-		====
 
-- regular backing tracks from Yandex.Music and Youtube.
-- input from clipboard;
-- save and load ID channels, key and other with data file;
-- save and load config file (specify folder etc);
-- save downloads info to ignore loaded but deleted files.
+Setup
+-----
 
 
-		Рейтинг артистов
-		================
+
+Usage
+-----
+
+
+
+Основные идеи
+-------------
+
+# Рейтинг артистов
 
 Важнее не известность артиста, а "импакт" - то, насколько высоко ставят его люди, знакомые с большим количеством разных треков.
 
 Рейтинг артиста = оценка * вес оценщика (кол-во подтверждённых разных артистов, которых слушал)
 
 
-		Добавление обложки в файл со звуком
-		===================================
-
+# Добавление обложки в файл со звуком
 
 1. Выбираем файл (JPEG, PNG, TIFF)
 2. Вручную выделяем кроп-область 1:1 или Custom, автообрезаем.
@@ -34,8 +35,7 @@ Artwork organizer. Store your notes, ratings, tags, other meta, linked to the ar
 4. Сохраняем в jpeg в тэге.
 
 
-		Резервирование коллекции
-		========================
+# Резервирование коллекции
 
 Периодически:
 
@@ -51,9 +51,7 @@ Artwork organizer. Store your notes, ratings, tags, other meta, linked to the ar
 	- добавить мету в базу данных (а стрим - можно и в файлы)
 
 
-
-        Отбор аудиодорожки лучшего качества
-	===================================
+# Отбор аудиодорожки лучшего качества
 
 - Сравнить аудио.
   - Если есть похожий - добавить к нему в группу.
@@ -62,3 +60,13 @@ Artwork organizer. Store your notes, ratings, tags, other meta, linked to the ar
   - Внутри каждой группы сортировать по: длина, битрейт.
   - Все тэги внутри группы - объединяются в один набор мета-данных. Пользователь может отменить объединение (чтобы объединить руками) или подтвердить - тогда все файлы получат этот тэг.
   - Пользователь выбирает один трек, который остаётся - Комета удаляет остальные треки, и удаляет группу из памяти, переходит к следующей группе.
+
+
+
+Источники вдохновения
+---------------------
+
+## fingerprint
+
+https://shivama205.medium.com/audio-signals-comparison-23e431ed2207
+https://github.com/kdave/audio-compare
