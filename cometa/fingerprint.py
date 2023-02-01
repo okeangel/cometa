@@ -2,7 +2,7 @@ import pathlib
 import subprocess
 import multiprocessing
 import pickle
-import json
+import jsonl
 
 import time
 import random
@@ -73,23 +73,25 @@ def get_paths(basic_paths):
 
 
 def dump_fingerprints(music_data_dir, files):
-    dump_path = music_data_dir.joinpath('fingerprints.pickle')
-    with dump_path.open('wb') as dump_file:
-        pickle.dump(files, dump_file)
+    dump_path = music_data_dir.joinpath('fingerprints')
+    jsonl.dump(files, dump_path)
+    #with dump_path.with_suffix('.pickle').open('wb') as dump_file:
+    #    pickle.dump(files, dump_file)
     print(f'Audio fingerprints saved to "{dump_path}".')
 
 
 def load_fingerprints(music_data_dir):
-    dump_path = music_data_dir.joinpath('fingerprints.pickle')
-    with dump_path.open('rb') as dump_file:
-        files = pickle.load(dump_file)
+    dump_path = music_data_dir.joinpath('fingerprints')
+    files = jsonl.load(dump_path)
+    #with dump_path.with_suffix('.pickle').open('rb') as dump_file:
+    #    files = pickle.load(dump_file)
     print(f'Audio fingerprints loaded from "{dump_path}".')
     return files
 
 
 def collect_fingerprints(dirs_to_scan, path_to_dump):
     print('Collecting file paths...')
-    files = [{'path': p} for p in get_paths(dirs_to_scan)]
+    files = [{'path': str(p)} for p in get_paths(dirs_to_scan)]
 
     print(f'Done. Files found: {len(files)}.')
 
@@ -112,7 +114,7 @@ def count_extentions(paths):
 
 
 def overview_audio_files(music_data_dir):
-    paths = [file['path'] for file in load_fingerprints(music_data_dir)]
+    paths = [pathlib.Path(file['path']) for file in load_fingerprints(music_data_dir)]
     print('Audio detected in files with extentions:')
     print(count_extentions(paths))
 
@@ -242,10 +244,9 @@ def collect_correlations(music_data_dir):
     print('Total audio fingerprints:', len(files))
     corrs = calculate_correlations(files)
 
-    corrs_path = music_data_dir.joinpath('correlations.json')
-    with corrs_path.open('w') as file:
-        json.dump(corrs, file)
-        print(f'Correlation data saved to "{corrs_path}".')
+    corrs_path = music_data_dir.joinpath('correlations')
+    jsonl.dump(corrs, corrs_path)
+    print(f'Correlation data saved to "{corrs_path}".')
 
 
 def print_max_corr(corr, source_path, target_path):
@@ -276,20 +277,25 @@ def print_max_corr(corr, source_path, target_path):
 
 
 def print_correlation(source_path, target_path):
-    fingerprint_source = calculate_fingerprints(source_path)
-    fingerprint_target = calculate_fingerprints(target_path)
-    corr = collect_all_cross_correlations(fingerprint_source, fingerprint_target, span, step)
-
+    
+    source_file = calculate_fingerprint({'path': source_path})
+    target_file = calculate_fingerprint({'path': target_path})
+    corr = collect_all_cross_correlations(source_file['chp_fingerprint'],
+                                          target_file['chp_fingerprint'],
+                                          span,
+                                          step)
     print(
-        f'duration_source = {duration_source},',
-        f'duration_target = {duration_target}',
+        f"duration_source = {source_file['chp_duration']},",
+        f"duration_target = {target_file['chp_duration']}",
     )
     print(
-        f'len_source = {len(fingerprint_source)},',
-        f'len_target = {len(fingerprint_target)}',
+        f"len_source = {len(source_file['chp_fingerprint'])},",
+        f"len_target = {len(target_file['chp_fingerprint'])}",
     )
-    ratio_source = len(fingerprint_source) / duration_source
-    ratio_target = len(fingerprint_target) / duration_target
+    ratio_source = (len(source_file['chp_fingerprint'])
+                    / source_file['chp_duration'])
+    ratio_target = (len(target_file['chp_fingerprint'])
+                    / target_file['chp_duration'])
     print(f'ratio_source = {ratio_source}, ratio_target = {ratio_target}')
 
     print_max_corr(corr, source_path, target_path)
