@@ -5,8 +5,8 @@ import multiprocessing
 #import pickle
 import jsonl
 
-
 import time
+import datetime
 import random
 
 import numpy
@@ -31,18 +31,20 @@ min_overlap = 0  # 20
 # If above then files may be (but need not be) a duplicate.
 threshold = 0.6
 
-
 # Bytes per correlation pair. When decreased, size of dumps will increase, so
 # Pandas will lack of memory to load it. If decrease - correlation performance
 # will decreased, and will be more dump files.
 
-# best for i3-2120
-bytes_per_correlation_pair = 1150  # * 10 * 2 * 3 * 5
+bytes_per_correlation_pair = 1150  # * 10**4
 
-# guess for R7-3700X
-# bytes_per_correlation_pair = 1150 * 2 * 3 * 5 / 6
+# This sets the maximum number of records that developer can comfortably
+# load to memory (3.5 Gb free) with Pandas at a time.
+# On load Pandas take 1150 bytes of memory per record.
+dump_size_limit = 3_000_000
 
 
+def str_no_microseconds(elapsed):
+    return str(elapsed).split('.')[0]
 
 
 def calculate_fingerprint(file):
@@ -225,48 +227,22 @@ def get_max_correlation(pair):
     return pair
 
 
-def calculate_correlations_legacy(files):
-    print('================ Calculaing correlations started. ================')
-    pairs_expected = (len(files) ** 2 - len(files)) // 2
-    time_expected = pairs_expected / 27000 * 16.4375 / 3600
-    print(f'Expected number of pairs: {pairs_expected:,}')
-    print(f'Expected time: {time_expected:.03f} hours')
-
-    pairs = []
-    for index, file_a in enumerate(files, 1):
-        pairs_chunk = []
-        for file_b in files[index:]:
-            pairs_chunk.append([file_a, file_b])
-
-        print(f'Iteration: {index:5}  |  ', end='')
-        start = time.time()
-
-        with multiprocessing.Pool() as pool:
-            results_chunk = pool.map(get_max_correlation, pairs_chunk)
-
-        elapsed = time.time() - start
-        print(f'Elapsed: {elapsed:8.3f} s  |  ', end='')
-        performance = len(results_chunk) / elapsed
-        print(f'Performance: {performance:5.0f} correlations/s')
-
-        pairs.extend(results_chunk)
-    print('=============== Calculaing correlations finished. ================')
-    return pairs
-
-
 # TODO: generator??
 def calculate_correlations(files, music_data_dir):
-    print('================ Calculaing correlations started. ================')
+    func_start = datetime.datetime.now()
+    print(f'Calculaing correlations started at',
+          str_no_microseconds(func_start))
     pairs_expected = (len(files) ** 2 - len(files)) // 2
     pairs_saved = 0
     print(f'Expected number of pairs: {pairs_expected:,}')
-    print(' Iter |    Chunk Size      |  Elapsed s |'
-          '   Perf. corr/s |  End in  | Progress')
+    print(' Iter |    Chunk Size      |   Performance  |'
+          '  Elapsed |   End in  | Progress')
     iteration = 1
     while files:
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
-        places_left = free_memory // bytes_per_correlation_pair 
+        places_left = min(free_memory // bytes_per_correlation_pair,
+                          dump_size_limit)
         # - len(files) + 1
         while places_left > 0 and files:
             chosen_file = files.pop()
@@ -275,40 +251,30 @@ def calculate_correlations(files, music_data_dir):
 
         print(f'{iteration:5} |', end='')
         share = len(pairs_chunk) / pairs_expected
-        print(f' {len(pairs_chunk):8} ({share:3.2%}) |', end='')
-        start = time.time()
+        print(f' {len(pairs_chunk):8} ({share:7.2%}) |', end='')
+        iter_start = datetime.datetime.now()
 
         with multiprocessing.Pool() as pool:
             results_chunk = pool.map(get_max_correlation, pairs_chunk)
 
-        elapsed = time.time() - start
-        print(f' {elapsed:8.3f} s |  ', end='')
-        performance = len(results_chunk) / elapsed
-        print(f' {performance:5.0f} corr/s |', end='')
-        end_in = (pairs_expected - pairs_saved) / performance
-        print(f' {end_in:6.0f} s |', end='')
+        elapsed = datetime.datetime.now() - iter_start
+        performance = len(results_chunk) / elapsed.seconds
+        print(f' {performance:7.0f} corr/s |', end='')
+        print(f' {str_no_microseconds(elapsed):>8} |  ', end='')
 
         corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}')
         jsonl.dump(results_chunk, corrs_path)  # generator yield here
         #  -> to external saving or sending or analysing or other handling
         # async call or thread for dumping/sending, but not for calculations
+        end_in_seconds = (pairs_expected - pairs_saved) / performance
+        end_in = datetime.timedelta(seconds=end_in_seconds)
+        print(f' {str_no_microseconds(end_in)} |', end='')
         pairs_saved += len(results_chunk)
-        print(f' {pairs_saved / pairs_expected:3.0%}')
+        print(f' {pairs_saved / pairs_expected:4.0%}')
         iteration += 1
-    print('=============== Calculaing correlations finished. ================')
-
-
-def collect_correlations_legacy(music_data_dir):
-    files = load_fingerprints(music_data_dir)
-    for file in files:
-        file['path'] = str(file['path'])
-    print('Total audio fingerprints:', len(files))
-
-    corrs = calculate_correlations_legacy(files)
-
-    corrs_path = music_data_dir.joinpath('correlations')
-    jsonl.dump(corrs, corrs_path)
-    print(f'Correlation data saved to "{corrs_path}".')
+    func_elapsed = datetime.datetime.now() - func_start
+    print('Calculaing correlations finished in',
+          str_no_microseconds(func_elapsed))
 
 
 def collect_correlations(music_data_dir):
