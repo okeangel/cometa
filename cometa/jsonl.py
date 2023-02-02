@@ -22,9 +22,7 @@ def dump(lines, path, headline=None):
 
 
 def load(path):
-    print(type(path))
     path = pathlib.Path(path)
-    print(type(path))
     if path.suffix == '':
         path = path.with_suffix('.jsonl')
     with open(path, encoding='utf-8') as input_file:

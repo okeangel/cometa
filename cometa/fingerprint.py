@@ -1,8 +1,10 @@
 import pathlib
+import psutil
 import subprocess
 import multiprocessing
-import pickle
+#import pickle
 import jsonl
+
 
 import time
 import random
@@ -28,6 +30,19 @@ min_overlap = 0  # 20
 # then files are not considered a match.
 # If above then files may be (but need not be) a duplicate.
 threshold = 0.6
+
+
+# Bytes per correlation pair. When decreased, size of dumps will increase, so
+# Pandas will lack of memory to load it. If decrease - correlation performance
+# will decreased, and will be more dump files.
+
+# best for i3-2120
+bytes_per_correlation_pair = 1150  # * 10 * 2 * 3 * 5
+
+# guess for R7-3700X
+# bytes_per_correlation_pair = 1150 * 2 * 3 * 5 / 6
+
+
 
 
 def calculate_fingerprint(file):
@@ -114,7 +129,8 @@ def count_extentions(paths):
 
 
 def overview_audio_files(music_data_dir):
-    paths = [pathlib.Path(file['path']) for file in load_fingerprints(music_data_dir)]
+    paths = ([pathlib.Path(file['path'])
+              for file in load_fingerprints(music_data_dir)])
     print('Audio detected in files with extentions:')
     print(count_extentions(paths))
 
@@ -158,7 +174,8 @@ def cross_correlation(nums_a, nums_b, offset):
         nums_a = nums_a[: len(nums_b)]
 
     if min(len(nums_a), len(nums_b)) < min_overlap:
-        raise Exception('Overlap too small: %i' % min(len(nums_a), len(nums_b)))
+        raise Exception('Overlap too small: %i' % min(len(nums_a),
+                                                      len(nums_b)))
 
     # cross correlate nums_a and nums_b with offsets from -span to span
     return correlation(nums_a, nums_b)
@@ -208,7 +225,7 @@ def get_max_correlation(pair):
     return pair
 
 
-def calculate_correlations(files):
+def calculate_correlations_legacy(files):
     print('================ Calculaing correlations started. ================')
     pairs_expected = (len(files) ** 2 - len(files)) // 2
     time_expected = pairs_expected / 27000 * 16.4375 / 3600
@@ -237,16 +254,71 @@ def calculate_correlations(files):
     return pairs
 
 
+# TODO: generator??
+def calculate_correlations(files, music_data_dir):
+    print('================ Calculaing correlations started. ================')
+    pairs_expected = (len(files) ** 2 - len(files)) // 2
+    pairs_saved = 0
+    print(f'Expected number of pairs: {pairs_expected:,}')
+    print(' Iter |    Chunk Size      |  Elapsed s |'
+          '   Perf. corr/s |  End in  | Progress')
+    iteration = 1
+    while files:
+        pairs_chunk = []
+        free_memory = psutil.virtual_memory()[1]
+        places_left = free_memory // bytes_per_correlation_pair 
+        # - len(files) + 1
+        while places_left > 0 and files:
+            chosen_file = files.pop()
+            pairs_chunk.extend([[chosen_file, file] for file in files])
+            places_left -= len(files)
+
+        print(f'{iteration:5} |', end='')
+        share = len(pairs_chunk) / pairs_expected
+        print(f' {len(pairs_chunk):8} ({share:3.2%}) |', end='')
+        start = time.time()
+
+        with multiprocessing.Pool() as pool:
+            results_chunk = pool.map(get_max_correlation, pairs_chunk)
+
+        elapsed = time.time() - start
+        print(f' {elapsed:8.3f} s |  ', end='')
+        performance = len(results_chunk) / elapsed
+        print(f' {performance:5.0f} corr/s |', end='')
+        end_in = (pairs_expected - pairs_saved) / performance
+        print(f' {end_in:6.0f} s |', end='')
+
+        corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}')
+        jsonl.dump(results_chunk, corrs_path)  # generator yield here
+        #  -> to external saving or sending or analysing or other handling
+        # async call or thread for dumping/sending, but not for calculations
+        pairs_saved += len(results_chunk)
+        print(f' {pairs_saved / pairs_expected:3.0%}')
+        iteration += 1
+    print('=============== Calculaing correlations finished. ================')
+
+
+def collect_correlations_legacy(music_data_dir):
+    files = load_fingerprints(music_data_dir)
+    for file in files:
+        file['path'] = str(file['path'])
+    print('Total audio fingerprints:', len(files))
+
+    corrs = calculate_correlations_legacy(files)
+
+    corrs_path = music_data_dir.joinpath('correlations')
+    jsonl.dump(corrs, corrs_path)
+    print(f'Correlation data saved to "{corrs_path}".')
+
+
 def collect_correlations(music_data_dir):
     files = load_fingerprints(music_data_dir)
     for file in files:
         file['path'] = str(file['path'])
     print('Total audio fingerprints:', len(files))
-    corrs = calculate_correlations(files)
 
-    corrs_path = music_data_dir.joinpath('correlations')
-    jsonl.dump(corrs, corrs_path)
-    print(f'Correlation data saved to "{corrs_path}".')
+    calculate_correlations(files, music_data_dir)
+    print(f'Correlation data saved to "{music_data_dir}".')
 
 
 def print_max_corr(corr, source_path, target_path):
