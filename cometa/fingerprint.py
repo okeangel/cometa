@@ -154,19 +154,23 @@ def correlation(nums_a, nums_b):
         raise Exception('Empty lists cannot be correlated.')
 
     # Shortening a longer sequence
-    if len(nums_a) > len(nums_b):
-        nums_a = nums_a[: len(nums_b)]
-    elif len(nums_a) < len(nums_b):
-        nums_b = nums_b[: len(nums_a)]
+    len_a = len(nums_a)
+    len_b = len(nums_b)
+    if len_a > len_b:
+        nums_a = nums_a[: len_b]
+    elif len_a < len_b:
+        nums_b = nums_b[: len_a]
 
-    covariance = 0
-    for i in range(len(nums_a)):
-        covariance += 32 - bin(nums_a[i] ^ nums_b[i]).count('1')
-    covariance = covariance / float(len(nums_a))
-    return covariance / 32
+    # Chromaprint use fixed bit lenght
+    bit_depth = 32
+    bits_total = len(nums_a) * bit_depth
+    bits_different = sum(
+        [(a ^ b).bit_count() for a, b in zip(nums_a, nums_b)]
+    )
+    return 1 - bits_different / bits_total
 
 
-def cross_correlation(nums_a, nums_b, offset):
+def correlation_with_offset(nums_a, nums_b, offset):
     if offset > 0:
         nums_a = nums_a[offset:]
         nums_b = nums_b[: len(nums_a)]
@@ -183,7 +187,7 @@ def cross_correlation(nums_a, nums_b, offset):
     return correlation(nums_a, nums_b)
 
 
-def collect_all_cross_correlations(nums_a, nums_b, span, step):
+def cross_correlation(nums_a, nums_b, span, step):
     if span > min(len(nums_a), len(nums_b)):
         # Error checking in main program should prevent us from ever being
         # able to get here.
@@ -194,29 +198,23 @@ def collect_all_cross_correlations(nums_a, nums_b, span, step):
         )
 
     correlations_of_pair = []
-    for offset in numpy.arange(-span, span + 1, step):
-        correlations_of_pair.append(cross_correlation(nums_a, nums_b, offset))
-
+    for offset in range(-span, span+1, step):
+        correlations_of_pair.append(
+            correlation_with_offset(nums_a, nums_b, offset)
+        )
     return correlations_of_pair
 
 
-def max_index(nums_a):
-    max_index = 0
-    max_value = nums_a[0]
-    for i, value in enumerate(nums_a):
-        if value > max_value:
-            max_value = value
-            max_index = i
-    return max_index
+def max_index(nums):
+    max_ = max(nums)
+    return max_, nums.index(max_)
 
 
 def get_max_correlation(pair):
-    correlations = collect_all_cross_correlations(
+    correlations = cross_correlation(
         pair[0]['chp_fingerprint'], pair[1]['chp_fingerprint'], span, step,
     )
-    max_corr_index = max_index(correlations)
-
-    max_corr_value = correlations[max_corr_index]
+    max_corr_value, max_corr_index = max_index(correlations)
     max_corr_offset = -span + max_corr_index * step
     pair = [
         pair[0]['path'],
@@ -318,7 +316,7 @@ def print_correlation(source_path, target_path):
     
     source_file = calculate_fingerprint({'path': source_path})
     target_file = calculate_fingerprint({'path': target_path})
-    corr = collect_all_cross_correlations(source_file['chp_fingerprint'],
+    corr = cross_correlation(source_file['chp_fingerprint'],
                                           target_file['chp_fingerprint'],
                                           span,
                                           step)
