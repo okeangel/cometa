@@ -159,11 +159,12 @@ def correlation(nums_a, nums_b):
     elif len(nums_a) < len(nums_b):
         nums_b = nums_b[: len(nums_a)]
 
-    covariance = 0
-    for i in range(len(nums_a)):
-        covariance += 32 - bin(nums_a[i] ^ nums_b[i]).count('1')
-    covariance = covariance / float(len(nums_a))
-    return covariance / 32
+    # Chromaprint use fixed bit lenght
+    bit_depth = 32
+    cumulative_difference = sum(
+        [(a ^ b).bit_count() for a, b in zip(nums_a, nums_b)]
+    )
+    return 1 - cumulative_difference / len(nums_a) / bit_depth
 
 
 def cross_correlation(nums_a, nums_b, offset):
