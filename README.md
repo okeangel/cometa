@@ -41,5 +41,5 @@ Inspired by
 
 ### fingerprint
 
-https://shivama205.medium.com/audio-signals-comparison-23e431ed2207
-https://github.com/kdave/audio-compare
+- <https://shivama205.medium.com/audio-signals-comparison-23e431ed2207>
+- <https://github.com/kdave/audio-compare>
