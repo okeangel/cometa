@@ -27,3 +27,12 @@ def load(path):
         path = path.with_suffix('.jsonl')
     with open(path, encoding='utf-8') as input_file:
         return [json.loads(line) for line in input_file]
+
+
+def load_by_lines(path):
+    path = pathlib.Path(path)
+    if path.suffix == '':
+        path = path.with_suffix('.jsonl')
+    with open(path, encoding='utf-8') as input_file:
+        for line in input_file:
+            yield json.loads(line)
