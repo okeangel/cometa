@@ -2,11 +2,11 @@ import pathlib
 import json
 
 
-def dump(lines, path, headline=None):
+def dump(lines, path, headline=None, mode='w'):
     path = pathlib.Path(path)
     if path.suffix == '':
         path = path.with_suffix('.jsonl')
-    with open(path, 'w', encoding='utf-8') as output_file:
+    with open(path, mode, encoding='utf-8') as output_file:
         if headline:
             json.dump(headline,
                       output_file,

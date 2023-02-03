@@ -239,29 +239,45 @@ def get_quick_correlation(pair):
 
 # TODO: generator??
 def calculate_correlations(files, music_data_dir):
+    processed_files_path = music_data_dir / 'processed_files.jsonl'
+    processed_saves_path = music_data_dir / 'processed_saves.jsonl'
     func_start = datetime.datetime.now()
     print(f'Calculaing correlations started at',
           str_no_microseconds(func_start))
+
     pairs_expected = (len(files) ** 2 - len(files)) // 2
-    pairs_saved = 0
+    pairs_processed = 0
+    iteration = 1
     print(f'Expected number of pairs: {pairs_expected:,}')
+
+    if processed_files_path.exists():
+        print('Found interrupted process. '
+              'Previously processed data will be skipped.')
+        files = [file for file in files
+                 if file['path'] not in jsonl.load(processed_files_path)]
+        pairs_processed = pairs_expected - (len(files) ** 2 - len(files)) // 2
+        print(f'Current progress: {pairs_processed/pairs_expected:.0%}')
+        iteration = len(jsonl.load(processed_saves_path)) + 1
+        
+
     print(' Iter |    Chunk Size      |   Performance  |'
           '  Elapsed |   End in  | Progress')
-    iteration = 1
     while files:
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
         places_left = min(free_memory // bytes_per_correlation_pair,
                           dump_size_limit)
         # - len(files) + 1
+        processed = []
         while places_left > 0 and files:
             chosen_file = files.pop()
+            processed.append(chosen_file['path'])
             pairs_chunk.extend([[chosen_file, file] for file in files])
             places_left -= len(files)
 
-        print(f'{iteration:5} |', end='')
+        print(f'{iteration:5} | ', end='')
         share = len(pairs_chunk) / pairs_expected
-        print(f' {len(pairs_chunk):8} ({share:7.2%}) |', end='')
+        print(f'{len(pairs_chunk):8} ({share:7.2%}) | ', end='')
 
         iter_start = datetime.datetime.now()
         with multiprocessing.Pool() as pool:
@@ -269,23 +285,35 @@ def calculate_correlations(files, music_data_dir):
         elapsed = datetime.datetime.now() - iter_start
 
         performance = len(results_chunk) / elapsed.seconds
-        print(f' {performance:7.0f} corr/s |', end='')
-        print(f' {str_no_microseconds(elapsed):>8} |  ', end='')
+        print(f'{performance:7.0f} corr/s | ', end='')
+        print(f'{str_no_microseconds(elapsed):>8} | ', end='')
+        pairs_processed += len(results_chunk)
 
         results_chunk = [pair for pair in results_chunk
-                         if pair['correlation'] > threshold]
-        corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}')
+                         if pair[2] > threshold]
+        corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}.jsonl')
         jsonl.dump(results_chunk, corrs_path)  # generator yield here
         #  -> to external saving or sending or analysing or other handling
         # async call or thread for dumping/sending, but not for calculations
-        end_in_seconds = (pairs_expected - pairs_saved) / performance
+        jsonl.dump(processed, processed_files_path, mode='a')
+        jsonl.dump([str(corrs_path)], processed_saves_path, mode='a')
+
+        end_in_seconds = (pairs_expected - pairs_processed) / performance
         end_in = datetime.timedelta(seconds=end_in_seconds)
-        print(f' {str_no_microseconds(end_in)} |', end='')
-        pairs_saved += len(results_chunk)
-        print(f' {pairs_saved / pairs_expected:4.0%}')
+        print(f'{str_no_microseconds(end_in)} | ', end='')
+        print(f'{pairs_processed / pairs_expected:4.0%}')
         iteration += 1
+    
+    save_paths = jsonl.load(processed_saves_path)
+    for child in music_data_dir.glob('correlations_*.jsonl'):
+        if (child.is_file()
+            and not str(child) in save_paths):
+            child.unlink()
+
+    processed_files_path.unlink(missing_ok=True)
+    processed_saves_path.unlink(missing_ok=True)
     func_elapsed = datetime.datetime.now() - func_start
-    print('Calculaing correlations finished in',
+    print('Сorrelation calculation completed in',
           str_no_microseconds(func_elapsed))
 
 
