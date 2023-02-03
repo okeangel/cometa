@@ -9,7 +9,7 @@ Scans your music directory. Creates audio fingerprints. Looking for duplicated a
 Setup
 -----
 
-Install [Python](https://www.python.org/downloads/), [fpcalc](https://acoustid.org/chromaprint) and [ffmpeg](https://ffmpeg.org/download.html). It is necessary you can call them on the command line by name. [Help for Windows is here.](https://phoenixnap.com/kb/ffmpeg-windows)
+Install [Python](https://www.python.org/downloads/), [fpcalc](https://acoustid.org/chromaprint) and [ffmpeg](https://ffmpeg.org/download.html). It is necessary you can call them on the command line by name. [Help for Windows.](https://phoenixnap.com/kb/ffmpeg-windows)
 
 Then download the archive with the project, unpack it into a directory, and type in command line:
 
