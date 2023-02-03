@@ -9,15 +9,9 @@ TODO
 
 # fingerprint.py:
 
-- запуск с аргументами:
-  - -i --info
-  - -s --scan
-  - -c --correlate
-  - -f --full
-  - -p --pair
-  - https://habr.com/ru/company/ruvds/blog/440654/
-  - https://docs.python.org/3/library/argparse.html
-
+- изучить ключи запуска fpcalc, установить лучшие, удалить sample_time - пусть
+  сканируется весь файл (записать это в README)
+- запуск fpcalc наиболее производительным способом, получение из него bit(byte)array
 - профили пользователей - в profiles.ini
 - вынести threshold в настройки, устанавливать 0.58 по умолчанию (basic), а aggressive - искать такой, ниже которого не было фактических пар в моей истории
   - собирать историю одобренных человеком пар
@@ -28,7 +22,6 @@ TODO
 - replace legacy calls to 3.11 recommendations (https://github.com/kdave/audio-compare)
 
 - проверить предположения по уменьшению потребления ресурсов (времени и памяти):
-  - создать и поставить основной функцию fast_correlaton, чтобы делать одну сверку, без сдвигов
   - перед сканированием фингерпринтов перемешать равномерно flac и другие файлы
     - shuffle, и проверить равномерность чем нибудь
     - если мало - то просто сортировать по расширениям, и чередовать по пропорциям
@@ -52,6 +45,15 @@ TODO
 - поиск идей для улучшения фингерпринтов:
   - https://news.ycombinator.com/item?id=8303713
   - https://github.com/topics/audio-fingerprinting?l=python&o=asc&s=stars
+
+- запуск с аргументами:
+  - -i --info
+  - -s --scan
+  - -c --correlate
+  - -f --full
+  - -p --pair
+  - https://habr.com/ru/company/ruvds/blog/440654/
+  - https://docs.python.org/3/library/argparse.html
 
 
 ## Отбор из дубликатов аудиодорожки лучшего качества
