@@ -17,25 +17,26 @@ import tqdm
 sample_time = 500
 
 # number of points to scan cross correlation over
-span = 0  # 150
+span = 150
 
 # step size (in points) of cross correlation
 step = 1
 
 # minimum number of points that must overlap in cross correlation
 # exception is raised if this cannot be met
-min_overlap = 0  # 20
+min_overlap = 20
 
 # If cross-correlation peaked below this threshold
 # then files are not considered a match.
 # If above then files may be (but need not be) a duplicate.
-threshold = 0.6
+# 1% of best matches has correlation greater than 0.577 on 16k files
+# from my girlfriend's music collection
+threshold = 0.58
 
 # Bytes per correlation pair. When decreased, size of dumps will increase, so
 # Pandas will lack of memory to load it. If decrease - correlation performance
 # will decreased, and will be more dump files.
-
-bytes_per_correlation_pair = 1150  # * 10**4
+bytes_per_correlation_pair = 1150
 
 # This sets the maximum number of records that developer can comfortably
 # load to memory (3.5 Gb free) with Pandas at a time.
@@ -145,7 +146,7 @@ def overview_audio_files(music_data_dir):
         [print(path) for path in unexpected_files]
 
 
-def correlation(nums_a, nums_b):
+def get_correlation(nums_a, nums_b):
     """Return correlation between lists of numbers"""
 
     if not nums_a or not nums_b:
@@ -184,7 +185,7 @@ def correlation_with_offset(nums_a, nums_b, offset):
                                                       len(nums_b)))
 
     # cross correlate nums_a and nums_b with offsets from -span to span
-    return correlation(nums_a, nums_b)
+    return get_correlation(nums_a, nums_b)
 
 
 def cross_correlation(nums_a, nums_b, span, step):
@@ -225,6 +226,17 @@ def get_max_correlation(pair):
     return pair
 
 
+def get_quick_correlation(pair):
+    correlation = get_correlation(pair[0]['chp_fingerprint'],
+                                  pair[1]['chp_fingerprint'])
+    return [
+        pair[0]['path'],
+        pair[1]['path'],
+        correlation,
+        0,
+    ]
+
+
 # TODO: generator??
 def calculate_correlations(files, music_data_dir):
     func_start = datetime.datetime.now()
@@ -250,16 +262,18 @@ def calculate_correlations(files, music_data_dir):
         print(f'{iteration:5} |', end='')
         share = len(pairs_chunk) / pairs_expected
         print(f' {len(pairs_chunk):8} ({share:7.2%}) |', end='')
+
         iter_start = datetime.datetime.now()
-
         with multiprocessing.Pool() as pool:
-            results_chunk = pool.map(get_max_correlation, pairs_chunk)
-
+            results_chunk = pool.map(get_quick_correlation, pairs_chunk)
         elapsed = datetime.datetime.now() - iter_start
+
         performance = len(results_chunk) / elapsed.seconds
         print(f' {performance:7.0f} corr/s |', end='')
         print(f' {str_no_microseconds(elapsed):>8} |  ', end='')
 
+        results_chunk = [pair for pair in results_chunk
+                         if pair['correlation'] > threshold]
         corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}')
         jsonl.dump(results_chunk, corrs_path)  # generator yield here
         #  -> to external saving or sending or analysing or other handling
