@@ -88,16 +88,12 @@ def get_paths(basic_paths):
 def dump_fingerprints(music_data_dir, files):
     dump_path = music_data_dir.joinpath('fingerprints')
     jsonl.dump(files, dump_path)
-    #with dump_path.with_suffix('.pickle').open('wb') as dump_file:
-    #    pickle.dump(files, dump_file)
     print(f'Audio fingerprints saved to "{dump_path}".')
 
 
 def load_fingerprints(music_data_dir):
     dump_path = music_data_dir.joinpath('fingerprints')
     files = jsonl.load(dump_path)
-    #with dump_path.with_suffix('.pickle').open('rb') as dump_file:
-    #    files = pickle.load(dump_file)
     print(f'Audio fingerprints loaded from "{dump_path}".')
     return files
 
@@ -233,7 +229,7 @@ def get_quick_correlation(pair):
 
 
 # TODO: generator??
-def calculate_correlations(files, music_data_dir):
+def calculate_correlations(files, music_data_dir, profiling=False):
     processed_files_path = music_data_dir / 'processed_files.jsonl'
     processed_saves_path = music_data_dir / 'processed_saves.jsonl'
     func_start = datetime.datetime.now()
@@ -260,9 +256,10 @@ def calculate_correlations(files, music_data_dir):
     while files:
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
-        places_left = min(free_memory // bytes_per_correlation_pair,
-                          dump_size_limit)
-        # - len(files) + 1
+        places_left = min(
+            free_memory // bytes_per_correlation_pair - len(files),
+            dump_size_limit,
+        )
         processed = []
         while places_left > 0 and files:
             chosen_file = files.pop()
@@ -275,8 +272,11 @@ def calculate_correlations(files, music_data_dir):
         print(f'{len(pairs_chunk):8} ({share:7.2%}) | ', end='')
 
         iter_start = datetime.datetime.now()
-        with multiprocessing.get_context('spawn').Pool() as pool:
-            results_chunk = pool.map(get_quick_correlation, pairs_chunk)
+        if profiling:
+            results_chunk = list(map(get_max_correlation, pairs_chunk))
+        else:
+            with multiprocessing.get_context('spawn').Pool() as pool:
+                results_chunk = pool.map(get_quick_correlation, pairs_chunk)
         elapsed = datetime.datetime.now() - iter_start
 
         performance = len(results_chunk) / elapsed.seconds
@@ -284,8 +284,11 @@ def calculate_correlations(files, music_data_dir):
         print(f'{str_no_microseconds(elapsed):>8} | ', end='')
         pairs_processed += len(results_chunk)
 
-        results_chunk = [pair for pair in results_chunk
-                         if pair[2] > threshold]
+        if profiling:
+            results_chunk = [pair for pair in results_chunk]
+        else:
+            results_chunk = [pair for pair in results_chunk
+                             if pair[2] > threshold]
         corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}.jsonl')
         jsonl.dump(results_chunk, corrs_path)  # generator yield here
         #  -> to external saving or sending or analysing or other handling

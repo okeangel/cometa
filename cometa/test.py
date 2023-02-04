@@ -40,6 +40,10 @@ def mock_tuple_pairs(power_of_10):
 def mock_dict_pairs(power_of_10):
     return [mock_dict_pair(3) for _ in range(10 ** power_of_10)]
 
+def mock_files(num_of_files):
+    return [{'chp_fingerprint': mock_fingerprint(3),
+             'path': f'/mocking/path/{i}'} for i in range(num_of_files)]
+
 # ----- A/B performance test -----
 
 def fix(num):
