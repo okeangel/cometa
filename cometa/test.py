@@ -21,7 +21,7 @@ def mock_tuple_pair(power_of_10):
     return mock_fingerprint(power_of_10), mock_fingerprint(power_of_10)
 
 
-def mock_pair_sequence(power_of_10):
+def mock_pairs_of_samples(power_of_10):
     return [s for s in zip(*mock_tuple_pair(power_of_10))]
 
 
@@ -54,6 +54,15 @@ def median(seq):
     return (row[i-1] + row[i]) / 2
 
 
+def run_test(func, items, timer):
+    start = time.time()
+    result = [func(*item) for item in items]
+    elapsed = time.time() - start
+    timer += elapsed
+    line = f'{fix(timer)} ({fix(elapsed)}) | '
+    return result, elapsed, timer, line
+
+
 def ab_test(func_a, func_b, mock_getter, cycles=100):
     path = r'C:\Users\okean\OneDrive\test'
 
@@ -69,24 +78,18 @@ def ab_test(func_a, func_b, mock_getter, cycles=100):
     print(' | '.join(headline))
 
     for i in range(1, cycles + 1):
-        args = mock_getter()
+        items = mock_getter()
 
         print(f'{i:{pad_i}} | ', end='')
-        start_a = time.time()
-        return_a = [func_a(x, y) for x, y in args]
-        #return_a = ref.calculate_correlations(arg, path)
-        elapsed_a = time.time() - start_a
-        total_a += elapsed_a
-        print(f'{fix(total_a)} ({fix(elapsed_a)}) | ', end='')
 
+        if i % 2:
+            result_a, elapsed_a, total_a, line_a = run_test(func_a, items, total_a)
+            result_b, elapsed_b, total_b, line_b = run_test(func_b, items, total_b)
+        else:
+            result_b, elapsed_b, total_b, line_b = run_test(func_b, items, total_b)
+            result_a, elapsed_a, total_a, line_a = run_test(func_a, items, total_a)
 
-        start_b = time.time()
-        return_b = [func_b(x, y) for x, y in args]
-        #return_b = ref.calculate_correlations(arg, path)    
-        elapsed_b = time.time() - start_b
-        total_b += elapsed_b
-        print(f'{fix(total_b)} ({fix(elapsed_b)}) | ', end='')
-        print(f'{total_a / total_b - 1:6.2%}', end='')
+        print(line_a + line_b + f'{total_a / total_b - 1:6.2%}', end='')
 
         timings.append([elapsed_a, elapsed_b])
 
@@ -94,10 +97,10 @@ def ab_test(func_a, func_b, mock_getter, cycles=100):
         median_b = median([i[1] for i in timings])
         print(f' / {median_a / median_b - 1:6.2%}')
 
-        if return_a != return_b:
+        if result_a != result_b:
             print('Returns not equal!')
-            print(return_a[0])
-            print(return_b[0])
+            print(result_a[0])
+            print(result_b[0])
             break
 
     print(f'Mean speed up: {total_a / total_b:.2f}x = '
@@ -123,7 +126,7 @@ def count_xor_oneline(a, b):
 if __name__ == '__main__':
     ab_test(  # 
         lambda nums_a, nums_b: sum(
-            map(lambda x, y: (x ^ y).bit_count(), nums_a, nums_b)
+            [(x ^ y).bit_count() for x, y in zip(nums_a, nums_b)]
         ),
         lambda nums_a, nums_b: sum(
             [(x ^ y).bit_count() for x, y in zip(nums_a, nums_b)]
