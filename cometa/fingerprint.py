@@ -2,16 +2,11 @@ import pathlib
 import psutil
 import subprocess
 import multiprocessing
-#import pickle
-import jsonl
 
-import time
 import datetime
-import random
-
-import numpy
 import tqdm
 
+import jsonl
 
 # seconds to sample audio file for
 sample_time = 500
@@ -261,7 +256,7 @@ def calculate_correlations(files, music_data_dir):
         
 
     print(' Iter |    Chunk Size      |   Performance  |'
-          '  Elapsed |   End in  | Progress')
+          '  Elapsed |  End in  | Progress')
     while files:
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
@@ -280,7 +275,7 @@ def calculate_correlations(files, music_data_dir):
         print(f'{len(pairs_chunk):8} ({share:7.2%}) | ', end='')
 
         iter_start = datetime.datetime.now()
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.get_context('spawn').Pool() as pool:
             results_chunk = pool.map(get_quick_correlation, pairs_chunk)
         elapsed = datetime.datetime.now() - iter_start
 
@@ -300,7 +295,7 @@ def calculate_correlations(files, music_data_dir):
 
         end_in_seconds = (pairs_expected - pairs_processed) / performance
         end_in = datetime.timedelta(seconds=end_in_seconds)
-        print(f'{str_no_microseconds(end_in)} | ', end='')
+        print(f'{str_no_microseconds(end_in):>8} | ', end='')
         print(f'{pairs_processed / pairs_expected:4.0%}')
         iteration += 1
     
