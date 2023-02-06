@@ -66,13 +66,14 @@ def calculate_fingerprint(file):
     return file
 
 
-def get_fingerprints(files):
-    pool = multiprocessing.Pool()
-    results = []
-    for result in tqdm.tqdm(
-        pool.imap_unordered(calculate_fingerprint, files), total=len(files)
-    ):
-        results.append(result)
+def get_fingerprints(files, profiling=False):
+    if profiling:
+        tasks = map(calculate_fingerprint, files)
+        results = [result for result in tqdm.tqdm(tasks, total=len(files))]
+    else:
+        pool = multiprocessing.Pool()
+        tasks = pool.imap_unordered(calculate_fingerprint, files)
+        results = [result for result in tqdm.tqdm(tasks, total=len(files))]
     return [file for file in results if file['chp_fingerprint']]
 
 
@@ -98,14 +99,14 @@ def load_fingerprints(music_data_dir):
     return files
 
 
-def collect_fingerprints(dirs_to_scan, path_to_dump):
+def collect_fingerprints(dirs_to_scan, path_to_dump, profiling=False):
     print('Collecting file paths...')
     files = [{'path': str(p)} for p in get_paths(dirs_to_scan)]
 
     print(f'Done. Files found: {len(files)}.')
 
     print('Creating audio fingerprints...')
-    files = get_fingerprints(files)
+    files = get_fingerprints(files, profiling)
     print('Done.')
 
     dump_fingerprints(path_to_dump, files)
@@ -273,7 +274,7 @@ def calculate_correlations(files, music_data_dir, profiling=False):
 
         iter_start = datetime.datetime.now()
         if profiling:
-            results_chunk = list(map(get_max_correlation, pairs_chunk))
+            results_chunk = list(map(get_quick_correlation, pairs_chunk))
         else:
             with multiprocessing.get_context('spawn').Pool() as pool:
                 results_chunk = pool.map(get_quick_correlation, pairs_chunk)
@@ -315,17 +316,35 @@ def calculate_correlations(files, music_data_dir, profiling=False):
           str_no_microseconds(func_elapsed))
 
 
-def collect_correlations(music_data_dir):
+def collect_correlations(music_data_dir, profiling=False):
     files = load_fingerprints(music_data_dir)
-    for file in files:
-        file['path'] = str(file['path'])
     print('Total audio fingerprints:', len(files))
 
-    calculate_correlations(files, music_data_dir)
+    calculate_correlations(files, music_data_dir, profiling)
     print(f'Correlation data saved to "{music_data_dir}".')
 
 
-def print_max_corr(corr, source_path, target_path):
+def print_correlation(source_path, target_path):
+    source_file = calculate_fingerprint({'path': source_path})
+    target_file = calculate_fingerprint({'path': target_path})
+    corr = cross_correlation(source_file['chp_fingerprint'],
+                                          target_file['chp_fingerprint'],
+                                          span,
+                                          step)
+    print(
+        f"duration_source = {source_file['chp_duration']},",
+        f"duration_target = {target_file['chp_duration']}",
+    )
+    print(
+        f"len_source = {len(source_file['chp_fingerprint'])},",
+        f"len_target = {len(target_file['chp_fingerprint'])}",
+    )
+    ratio_source = (len(source_file['chp_fingerprint'])
+                    / source_file['chp_duration'])
+    ratio_target = (len(target_file['chp_fingerprint'])
+                    / target_file['chp_duration'])
+    print(f'ratio_source = {ratio_source}, ratio_target = {ratio_target}')
+
     max_corr_index = max_index(corr)
     max_corr_offset = -span + max_corr_index * step
 
@@ -350,28 +369,3 @@ def print_max_corr(corr, source_path, target_path):
         )
     else:
         print('No statistically significant correlation was found.')
-
-
-def print_correlation(source_path, target_path):
-    
-    source_file = calculate_fingerprint({'path': source_path})
-    target_file = calculate_fingerprint({'path': target_path})
-    corr = cross_correlation(source_file['chp_fingerprint'],
-                                          target_file['chp_fingerprint'],
-                                          span,
-                                          step)
-    print(
-        f"duration_source = {source_file['chp_duration']},",
-        f"duration_target = {target_file['chp_duration']}",
-    )
-    print(
-        f"len_source = {len(source_file['chp_fingerprint'])},",
-        f"len_target = {len(target_file['chp_fingerprint'])}",
-    )
-    ratio_source = (len(source_file['chp_fingerprint'])
-                    / source_file['chp_duration'])
-    ratio_target = (len(target_file['chp_fingerprint'])
-                    / target_file['chp_duration'])
-    print(f'ratio_source = {ratio_source}, ratio_target = {ratio_target}')
-
-    print_max_corr(corr, source_path, target_path)
