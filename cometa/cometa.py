@@ -12,9 +12,7 @@ if __name__ == '__main__':
     #args = parser.parse_args()
     #print(args.indir)
 
-
-    userdata_path, localdata_path = config.get_data_paths()
-    music_dirs, music_data_dir = config.get_config(userdata_path)
+    music_dirs, music_data_dir = config.get_config()
     print('Music files stored in:')
     print('\n'.join(str(d) for d in music_dirs))
     print(f'...and music data will read and write in:\n{music_data_dir}')

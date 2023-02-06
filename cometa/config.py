@@ -2,6 +2,7 @@ import configparser
 import pathlib
 import sys
 
+
 def get_data_paths() -> tuple:
     """Return roaming and local user data paths"""
     portable_path = pathlib.Path('portable')
@@ -60,8 +61,12 @@ def get_profile_from_config(config_path, collection_name):
     return music_dirs, music_data_dir
 
 
-def get_config(userdata_path):
-    config_dir = userdata_path / 'config'
+def get_config_dir():
+    return get_data_paths()[0] / 'config'
+
+
+def get_config():
+    config_dir = get_config_dir()
     if not config_dir.exists():
         config_dir.mkdir(parents=True)
     config_path = config_dir / 'main.ini'
@@ -78,31 +83,31 @@ def get_config(userdata_path):
         config.read(config_path)
         collection_names = config.sections()
         print('Known collections:', ', '.join(collection_names))
-        print('Input the name of the collection to be processed:')
-        while True:
-            collection_name = input()
-            if not collection_name:
-                print('No name found. Please input again:')
-            elif collection_name not in collection_names:
-                print('This name is a new one. Do you want to describe '
-                      'a new collection (Y/n)?')
+        print('Input the name of the collection to be processed. If you want '
+              'to create\na new profile, enter new name.'
+              ' Or type Enter to exit:')
+        collection_name = input()
+        if collection_name == '':
+            print('No name typed. Bye!')
+            sys.exit()
+        elif collection_name not in collection_names:
+            print('This name is a new one. Do you want to describe '
+                  'a new collection (Y/n)?')
+            decision_new = input()
+            while True:
+                if decision_new.lower() in ['y', 'yes']:
+                    music_dirs, music_data_dir = get_profile_from_input()
+                    update_config(config_path,
+                                  collection_name,
+                                  music_dirs,
+                                  music_data_dir)
+                    break
+                elif decision_new.lower() in ['n', 'no']:
+                    print('Okay, let you decide what exactly do you want '
+                          'to do and then start again.')
+                    sys.exit()
+                print('So yes or no (y/n)?')
                 decision_new = input()
-                while True:
-                    if decision_new.lower() in ['y', 'yes']:
-                        music_dirs, music_data_dir = get_profile_from_input()
-                        update_config(config_path,
-                                      collection_name,
-                                      music_dirs,
-                                      music_data_dir)
-                        break
-                    elif decision_new.lower() in ['n', 'no']:
-                        print('Okay, let you decide what exactly do you want '
-                              'to do and then start again.')
-                        sys.exit()
-                    print('So yes or no (y/n)?')
-                    decision_new = input()
-                break
-            break
     return get_profile_from_config(config_path, collection_name)
 
 
@@ -116,4 +121,3 @@ def update_config(config_path, collection_name, music_dirs, music_data_dir):
     with open(config_path, 'w') as configfile:
         config.write(configfile)
     return config
-
