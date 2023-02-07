@@ -84,6 +84,7 @@ def get_paths(basic_paths):
 
 
 def dump_fingerprints(music_data_dir, files):
+    print('Saving fingerprints...')
     dump_path = music_data_dir.joinpath('fingerprints')
     jsonl.dump(files, dump_path)
     print(f'Audio fingerprints saved to "{dump_path}".')
@@ -99,18 +100,13 @@ def load_fingerprints(music_data_dir):
 def collect_fingerprints(dirs_to_scan, path_to_dump, profiling=False):
     fp_start = time.perf_counter_ns()
     print('Current task: create audio fingerprints.')
-    print('Collecting file paths...')
+    print('Collecting file paths... ', end='')
     files = [{'path': str(p)} for p in get_paths(dirs_to_scan)]
-
     print(f'Done. Files found: {len(files)}.')
-    shuffling_start = time.perf_counter_ns()
     random.shuffle(files)
-    shuffling_elapsed = (time.perf_counter_ns() - shuffling_start) / 10**9
-    print(f'Shuffled in {shuffling_elapsed} s.')
 
-    print('Creating audio fingerprints...')
+    print('Creating audio fingerprints.')
     files = get_fingerprints(files, profiling)
-    print('Done.')
 
     dump_fingerprints(path_to_dump, files)
     fp_elapsed = (time.perf_counter_ns() - fp_start) / 10**9
