@@ -4,6 +4,7 @@ import pathlib
 import config
 import jsonl
 import fingerprint
+import datetime
 
 
 def deep_check_identity_fingerprints(ref_path, test_path):
@@ -111,10 +112,14 @@ def check_results_correct(music_data_dir):
 
 
 if __name__ == '__main__':
+    roaming_dir, local_dir = config.get_data_paths()
     music_dirs, music_data_dir = config.get_profile_from_config(
         config.get_config_dir() / 'main.ini',
         'test',
     )
+    local_dir.mkdir(exist_ok=True, parents=True)
+
+    when = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
     cProfile.run(
         """
@@ -123,7 +128,7 @@ fingerprint.collect_fingerprints(
     music_data_dir,
     profiling=True,
 )
-        """, 'test_fingerprints.pstats')
+        """, local_dir / f'{config.APP_VERSION}_fingerprints_{when}.pstats')
 
     cProfile.run(
         """
@@ -131,6 +136,6 @@ fingerprint.collect_correlations(
     music_data_dir,
     profiling=True,
 )
-        """, 'test_correlations.pstats')
+        """, local_dir / f'{config.APP_VERSION}_correlations_{when}.pstats')
 
     check_results_correct(music_data_dir)
