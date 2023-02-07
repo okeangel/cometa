@@ -240,12 +240,12 @@ def calculate_correlations(files, music_data_dir, profiling=False):
     processed_saves_path = music_data_dir / 'processed_saves.jsonl'
     func_start = datetime.datetime.now()
     print(f'Calculaing correlations started at',
-          str_no_microseconds(func_start))
+          f'{str_no_microseconds(func_start)}.')
 
     pairs_expected = (len(files) ** 2 - len(files)) // 2
     pairs_processed = 0
     iteration = 1
-    print(f'Expected number of pairs: {pairs_expected:,}')
+    print(f'Expected number of pairs: {pairs_expected:,}.')
 
     if processed_files_path.exists():
         print('Found interrupted process. '
@@ -321,7 +321,7 @@ def calculate_correlations(files, music_data_dir, profiling=False):
     func_elapsed = datetime.datetime.now() - func_start
     corr_elapsed = (time.perf_counter_ns() - corr_start) / 10**9
     print(f'Task completed in {str_no_microseconds(func_elapsed)}'
-          f'({corr_elapsed} s.)')
+          f' ({corr_elapsed} s).')
 
 
 def collect_correlations(music_data_dir, profiling=False):

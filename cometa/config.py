@@ -22,26 +22,26 @@ def get_profile_from_input():
         """
 Enter the paths to the directories that contain the music. First, input path
 line, then press Enter, then input the next path line, Enter, and so on.
-In the end just press Enter again, with no symbols. :
+In the end just press Enter again, with no symbols.
 """.strip()
     )
     music_dirs = []
     while True:
-        text = input()
+        text = input('μ: ')
         if not text:
             break
         music_dir = pathlib.Path(text)
         if not music_dir.is_dir():
-            print('Folder not found at this path. Please input again:')
+            print('Folder not found at this path. Please input again.')
             continue
         music_dirs.append(music_dir)
 
     print('In which folder to save track data?')
     while True:
-        music_data_dir = pathlib.Path(input())
+        music_data_dir = pathlib.Path(input('>>> '))
         if music_data_dir.is_dir():
             break
-        print('Folder not found at this path. Please input again:')
+        print('Folder not found at this path. Please input again.')
     return music_dirs, music_data_dir
 
 
@@ -74,26 +74,27 @@ def get_config():
     if not config_path.exists():
         print('Here is no saved configuration. Let us create an actual one.')
         print('Enter the name of your music collection')
-        print('(or your favorite username, nickname or full name):')
-        collection_name = input()
+        print('(or your favorite username, nickname or full name).')
+        collection_name = input('μ: ')
         music_dirs, music_data_dir = get_profile_from_input()
         update_config(config_path, collection_name, music_dirs, music_data_dir)
     else:
         config = configparser.ConfigParser()
         config.read(config_path)
         collection_names = config.sections()
-        print('Known collections:', ', '.join(collection_names))
-        print('Input the name of the collection to be processed. If you want '
-              'to create\na new profile, enter new name.'
-              ' Or type Enter to exit:')
-        collection_name = input()
+        displayed_collection_names = [f'"{name}"' for name in collection_names]
+        print(f'Known collections: {", ".join(displayed_collection_names)}.')
+        print('Input the name of the collection to be processed. If you want\n'
+              'to create a new profile, enter new name.'
+              ' Or type Enter to exit.')
+        collection_name = input('μ: ')
         if collection_name == '':
             print('No name typed. Bye!')
             sys.exit()
         elif collection_name not in collection_names:
             print('This name is a new one. Do you want to describe '
                   'a new collection (Y/n)?')
-            decision_new = input()
+            decision_new = input('μ: ')
             while True:
                 if decision_new.lower() in ['y', 'yes']:
                     music_dirs, music_data_dir = get_profile_from_input()
@@ -107,7 +108,7 @@ def get_config():
                           'to do and then start again.')
                     sys.exit()
                 print('So yes or no (y/n)?')
-                decision_new = input()
+                decision_new = input('μ: ')
     return get_profile_from_config(config_path, collection_name)
 
 
