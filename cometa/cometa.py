@@ -11,6 +11,7 @@ if __name__ == '__main__':
 
     #args = parser.parse_args()
     #print(args.indir)
+    print(config.APP_NAME, config.APP_VERSION, f'({config.RELEASE_DATE}).')
 
     music_dirs, music_data_dir = config.get_config()
     print('Music files stored in:')

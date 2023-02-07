@@ -3,6 +3,11 @@ import pathlib
 import sys
 
 
+APP_NAME = 'Cometa'
+APP_VERSION = '0.1.4'
+RELEASE_DATE = '2023-02-07'
+
+
 def get_data_paths() -> tuple:
     """Return roaming and local user data paths"""
     portable_path = pathlib.Path('portable')
