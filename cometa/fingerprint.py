@@ -4,6 +4,7 @@ import subprocess
 import multiprocessing
 import random
 
+import time
 import datetime
 import tqdm
 
@@ -96,19 +97,24 @@ def load_fingerprints(music_data_dir):
 
 
 def collect_fingerprints(dirs_to_scan, path_to_dump, profiling=False):
+    fp_start = time.perf_counter_ns()
+    print('Current task: create audio fingerprints.')
     print('Collecting file paths...')
     files = [{'path': str(p)} for p in get_paths(dirs_to_scan)]
 
     print(f'Done. Files found: {len(files)}.')
-    start = datetime.datetime.now()
+    shuffling_start = time.perf_counter_ns()
     random.shuffle(files)
-    print('Shuffled in:', datetime.datetime.now() - start)
+    shuffling_elapsed = (time.perf_counter_ns() - shuffling_start) / 10**9
+    print(f'Shuffled in {shuffling_elapsed} s.')
 
     print('Creating audio fingerprints...')
     files = get_fingerprints(files, profiling)
     print('Done.')
 
     dump_fingerprints(path_to_dump, files)
+    fp_elapsed = (time.perf_counter_ns() - fp_start) / 10**9
+    print(f'Task done in {fp_elapsed} s.')
 
 
 def count_extentions(paths):
@@ -229,6 +235,7 @@ def get_quick_correlation(pair):
 
 # TODO: generator??
 def calculate_correlations(files, music_data_dir, profiling=False):
+    corr_start = time.perf_counter_ns()
     processed_files_path = music_data_dir / 'processed_files.jsonl'
     processed_saves_path = music_data_dir / 'processed_saves.jsonl'
     func_start = datetime.datetime.now()
@@ -312,8 +319,9 @@ def calculate_correlations(files, music_data_dir, profiling=False):
     processed_files_path.unlink(missing_ok=True)
     processed_saves_path.unlink(missing_ok=True)
     func_elapsed = datetime.datetime.now() - func_start
-    print('Сorrelation calculation completed in',
-          str_no_microseconds(func_elapsed))
+    corr_elapsed = (time.perf_counter_ns() - corr_start) / 10**9
+    print(f'Task completed in {str_no_microseconds(func_elapsed)}'
+          f'({corr_elapsed} s.)')
 
 
 def collect_correlations(music_data_dir, profiling=False):
