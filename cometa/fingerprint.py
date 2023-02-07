@@ -9,35 +9,34 @@ import tqdm
 import jsonl
 
 
-# seconds to sample audio file for
-sample_time = 5400
+# seconds to sample audio file for fingerprint
+SAMPLE_TIME = 5400
 
-# number of points to scan cross correlation over
-span = 150
+# number of fingerprint samples to scan cross correlation over
+SPAN = 150
 
-# step size (in points) of cross correlation
-step = 1
+# step size (in fingerprint samples) of cross correlation
+STEP = 1
 
-# minimum number of points that must overlap in cross correlation
+# minimum number of fingerprint samples that must overlap in cross correlation
 # exception is raised if this cannot be met
-min_overlap = 20
+MIN_OVERLAP = 20
 
-# If cross-correlation peaked below this threshold
-# then files are not considered a match.
-# If above then files may be (but need not be) a duplicate.
-# 1% of best matches has correlation greater than 0.577 on 16k files
-# from my girlfriend's music collection
-threshold = 0.58
+# threshold above which tracks are considered similar
+# 1% of best matches has correlation greater than 0.577 on 83k files
+THRESHOLD = 0.58
 
-# Bytes per correlation pair. When decreased, size of dumps will increase, so
-# Pandas will lack of memory to load it. If decrease - correlation performance
-# will decreased, and will be more dump files.
-bytes_per_correlation_pair = 1150
+# The size (in bytes) reserved in memory for pair correlation calculations.
+# If you reduce it, then performance will slightly increase,
+# but the size of the dumps will also increase, and therefore
+# there may not be enough memory to load the saved results later.
+BYTES_PER_CORRELATION_PAIR = 1150
 
-# This sets the maximum number of records that developer can comfortably
-# load to memory (3.5 Gb free) with Pandas at a time.
-# On load Pandas take 1150 bytes of memory per record.
-dump_size_limit = 3_000_000
+# Maximum number of entries in one dump file.
+# The developer of this application has 3.5 GB of free memory on his laptop.
+# When loaded into Pandas, each entry requires 1150 bytes of memory per entry,
+# and 3 million entries requires 3.15 GB.
+DUMP_SIZE_LIMIT = 3_000_000
 
 
 def str_no_microseconds(elapsed):
@@ -49,7 +48,7 @@ def calculate_fingerprint(file):
         fpcalc_out = subprocess.getoutput(
             'fpcalc -raw -length %i "%s"'
             % (
-                sample_time,
+                SAMPLE_TIME,
                 file['path'],
             )
         )
@@ -58,7 +57,7 @@ def calculate_fingerprint(file):
         fingerprint = list(map(int, fpcalc_out[fingerprint_index:].split(',')))
     except ValueError:
         fingerprint = []
-    file['chp_fingerprint'] = fingerprint
+    file['fingerprint'] = fingerprint
     return file
 
 
@@ -70,7 +69,7 @@ def get_fingerprints(files, profiling=False):
         pool = multiprocessing.Pool()
         tasks = pool.imap_unordered(calculate_fingerprint, files)
         results = [result for result in tqdm.tqdm(tasks, total=len(files))]
-    return [file for file in results if file['chp_fingerprint']]
+    return [file for file in results if file['fingerprint']]
 
 
 def get_paths(basic_paths):
@@ -168,11 +167,10 @@ def correlation_with_offset(nums_a, nums_b, offset):
         nums_b = nums_b[offset:]
         nums_a = nums_a[: len(nums_b)]
 
-    if min(len(nums_a), len(nums_b)) < min_overlap:
-        raise Exception('Overlap too small: %i' % min(len(nums_a),
-                                                      len(nums_b)))
+    if min(len(nums_a), len(nums_b)) < MIN_OVERLAP:
+        raise Exception('Overlap too small: %i'
+                        % min(len(nums_a), len(nums_b)))
 
-    # cross correlate nums_a and nums_b with offsets from -span to span
     return get_correlation(nums_a, nums_b)
 
 
@@ -183,7 +181,7 @@ def cross_correlation(nums_a, nums_b, span, step):
         raise Exception(
             'span >= sample size: %i >= %i\n'
             % (span, min(len(nums_a), len(nums_b)))
-            + 'Reduce span, reduce crop or increase sample_time.'
+            + 'Reduce span, reduce crop or increase SAMPLE_TIME.'
         )
 
     correlations_of_pair = []
@@ -201,10 +199,10 @@ def max_index(nums):
 
 def get_max_correlation(pair):
     correlations = cross_correlation(
-        pair[0]['chp_fingerprint'], pair[1]['chp_fingerprint'], span, step,
+        pair[0]['fingerprint'], pair[1]['fingerprint'], SPAN, STEP,
     )
     max_corr_value, max_corr_index = max_index(correlations)
-    max_corr_offset = -span + max_corr_index * step
+    max_corr_offset = -SPAN + max_corr_index * STEP
     pair = [
         pair[0]['path'],
         pair[1]['path'],
@@ -215,14 +213,14 @@ def get_max_correlation(pair):
 
 
 def get_quick_correlation(pair):
-    correlation = get_correlation(pair[0]['chp_fingerprint'],
-                                  pair[1]['chp_fingerprint'])
-    return [
-        pair[0]['path'],
-        pair[1]['path'],
-        correlation,
-        0,
-    ]
+    correlation = get_correlation(pair[0]['fingerprint'],
+                                  pair[1]['fingerprint'])
+    return {
+        'a': pair[0]['path'],
+        'b': pair[1]['path'],
+        'corr': correlation,
+        'offset': 0,
+    }
 
 
 # TODO: generator??
@@ -254,8 +252,8 @@ def calculate_correlations(files, music_data_dir, profiling=False):
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
         places_left = min(
-            free_memory // bytes_per_correlation_pair - len(files),
-            dump_size_limit,
+            free_memory // BYTES_PER_CORRELATION_PAIR - len(files),
+            DUMP_SIZE_LIMIT,
         )
         processed = []
         while places_left > 0 and files:
@@ -285,8 +283,10 @@ def calculate_correlations(files, music_data_dir, profiling=False):
             results_chunk = [pair for pair in results_chunk]
         else:
             results_chunk = [pair for pair in results_chunk
-                             if pair[2] > threshold]
-        corrs_path = music_data_dir.joinpath(f'correlations_{iteration:03}.jsonl')
+                             if pair['corr'] > THRESHOLD]
+        corrs_path = music_data_dir.joinpath(
+            f'correlations_{iteration:03}.jsonl'
+        )
         jsonl.dump(results_chunk, corrs_path)  # generator yield here
         #  -> to external saving or sending or analysing or other handling
         # async call or thread for dumping/sending, but not for calculations
@@ -323,26 +323,20 @@ def collect_correlations(music_data_dir, profiling=False):
 def print_correlation(source_path, target_path):
     source_file = calculate_fingerprint({'path': source_path})
     target_file = calculate_fingerprint({'path': target_path})
-    corr = cross_correlation(source_file['chp_fingerprint'],
-                                          target_file['chp_fingerprint'],
-                                          span,
-                                          step)
-    print(
-        f"duration_source = {source_file['chp_duration']},",
-        f"duration_target = {target_file['chp_duration']}",
+    corr = cross_correlation(
+        source_file['fingerprint'],
+        target_file['fingerprint'],
+        SPAN,
+        STEP,
     )
+
     print(
-        f"len_source = {len(source_file['chp_fingerprint'])},",
-        f"len_target = {len(target_file['chp_fingerprint'])}",
+        f"len_source = {len(source_file['fingerprint'])},",
+        f"len_target = {len(target_file['fingerprint'])}",
     )
-    ratio_source = (len(source_file['chp_fingerprint'])
-                    / source_file['chp_duration'])
-    ratio_target = (len(target_file['chp_fingerprint'])
-                    / target_file['chp_duration'])
-    print(f'ratio_source = {ratio_source}, ratio_target = {ratio_target}')
 
     max_corr_index = max_index(corr)
-    max_corr_offset = -span + max_corr_index * step
+    max_corr_offset = -SPAN + max_corr_index * STEP
 
     print(
         'max_corr_index = ',
@@ -351,7 +345,7 @@ def print_correlation(source_path, target_path):
         max_corr_offset,
     )
 
-    if corr[max_corr_index] > threshold:
+    if corr[max_corr_index] > THRESHOLD:
         print(
             (
                 '%s and %s match with correlation of %.4f at offset %i'
