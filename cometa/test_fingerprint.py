@@ -1,7 +1,9 @@
+import cProfile
 import pathlib
 
 import config
 import jsonl
+import fingerprint
 
 
 def deep_check_identity_fingerprints(ref_path, test_path):
@@ -110,7 +112,26 @@ def check_results_correct(music_data_dir):
 
 
 if __name__ == '__main__':
-    userdata_path, localdata_path = config.get_data_paths()
-    music_dirs, music_data_dir = config.get_config(userdata_path)
+    music_dirs, music_data_dir = config.get_profile_from_config(
+        config.get_config_dir() / 'main.ini',
+        'test',
+    )
+
+    cProfile.run(
+        """
+fingerprint.collect_fingerprints(
+    music_dirs,
+    music_data_dir,
+    profiling=True,
+)
+        """, 'test_fingerprints.pstats')
+
+    cProfile.run(
+        """
+fingerprint.collect_correlations(
+    music_data_dir,
+    profiling=True,
+)
+        """, 'test_correlations.pstats')
 
     check_results_correct(music_data_dir)
