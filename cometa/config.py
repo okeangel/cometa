@@ -4,8 +4,8 @@ import sys
 
 
 APP_NAME = 'Cometa'
-APP_VERSION = '0.1.4'
-RELEASE_DATE = '2023-02-07'
+APP_VERSION = '0.0.3'
+RELEASE_DATE = '2023-02-08'
 
 
 def get_data_paths() -> tuple:
