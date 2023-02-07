@@ -10,7 +10,7 @@ import jsonl
 
 
 # seconds to sample audio file for
-sample_time = 500
+sample_time = 5400
 
 # number of points to scan cross correlation over
 span = 150
