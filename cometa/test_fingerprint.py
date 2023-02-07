@@ -11,7 +11,7 @@ def deep_check_identity_fingerprints(ref_path, test_path):
     ref = jsonl.load(ref_path)
     ref_d = {
         str(item['path']): {
-            'chp_fingerprint': item['chp_fingerprint'],
+            'fingerprint': item['fingerprint'],
         } for item in ref
     }
     assert len(ref_d) == len(ref)
@@ -22,7 +22,7 @@ def deep_check_identity_fingerprints(ref_path, test_path):
     test = jsonl.load(test_file_path)
     test_d = {
         str(item['path']): {
-            'chp_fingerprint': item['chp_fingerprint'],
+            'fingerprint': item['fingerprint'],
         } for item in test
     }
     assert len(test_d) == len(test)
@@ -32,7 +32,7 @@ def deep_check_identity_fingerprints(ref_path, test_path):
     assert len(test_d) == len(ref_d)
     for path, file in test_d.items():
         assert path in ref_d
-        assert file['chp_fingerprint'] == ref_d[path]['chp_fingerprint']
+        assert file['fingerprint'] == ref_d[path]['fingerprint']
     print('Fingerprint files contain identical data, but different text.')
 
 
@@ -58,7 +58,7 @@ def check_identity_fingerprints(test_data_dir):
 
 def deep_check_identity_correlations(ref_path, test_paths):
     ref = jsonl.load(ref_path)
-    ref_d = {frozenset([x[0], x[1]]): x[2] for x in ref}
+    ref_d = {frozenset([pair['a'], pair['b']]): pair['corr'] for pair in ref}
     assert len(ref_d) == len(ref)
     del ref
 
@@ -66,7 +66,7 @@ def deep_check_identity_correlations(ref_path, test_paths):
     test = []
     for child in test_paths:
         test.extend(jsonl.load(child))
-    test_d = {frozenset([x[0], x[1]]): x[2] for x in test}
+    test_d = {frozenset([pair['a'], pair['b']]): pair['corr'] for pair in test}
     assert len(test_d) == len(test)
     del test
 
@@ -74,7 +74,6 @@ def deep_check_identity_correlations(ref_path, test_paths):
     assert len(test_d) == len(ref_d)
     for pair in test_d:
         assert pair in ref_d
-        # assert abs(test_d[pair] - ref_d[pair]) < 0.0000000000000003
         if abs(test_d[pair] - ref_d[pair]) > 0.0000000000000002:
             raise ValueError('Correlation values not identical: '
                 f'new {test_d[pair]} != ref {ref_d[pair]}\n'
