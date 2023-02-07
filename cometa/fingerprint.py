@@ -2,6 +2,7 @@ import pathlib
 import psutil
 import subprocess
 import multiprocessing
+import random
 
 import datetime
 import tqdm
@@ -99,6 +100,9 @@ def collect_fingerprints(dirs_to_scan, path_to_dump, profiling=False):
     files = [{'path': str(p)} for p in get_paths(dirs_to_scan)]
 
     print(f'Done. Files found: {len(files)}.')
+    start = datetime.datetime.now()
+    random.shuffle(files)
+    print('Shuffled in:', datetime.datetime.now() - start)
 
     print('Creating audio fingerprints...')
     files = get_fingerprints(files, profiling)
