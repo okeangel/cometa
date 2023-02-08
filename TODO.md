@@ -5,6 +5,26 @@ TODO
 
 # Актуальная инфа
 
+
+## Performance profiling
+
+
+### Hamming Distance between two bitwise arrays
+
+- 28.4 s - XOR
+- 12.6 s - bit_count
+- 10.3 s - results to list
+- 1.145 s - sum results
+
+### Other operations
+
+- 0.8 s - get_correlation()
+- 0.95 s - get_correlation_with_offset()
+- 0.6 s - get_cross_correlation
+- 0.03 s - other
+
+
+
 # jsonl.py
 
 - loads
