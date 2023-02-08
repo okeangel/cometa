@@ -71,7 +71,10 @@ def get_fingerprints(files, profiling=False):
         pool = multiprocessing.Pool()
         tasks = pool.imap_unordered(calculate_fingerprint, files)
         results = [result for result in tqdm.tqdm(tasks, total=len(files))]
-    return [file for file in results if file['fingerprint']]
+
+    files = [file for file in results if file['fingerprint']]
+    files.sort(key=lambda x: len(x['fingerprint']))
+    return files
 
 
 def get_paths(basic_paths):
