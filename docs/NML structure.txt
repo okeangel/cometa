@@ -1,0 +1,128 @@
+xml
+NML
+    HEAD /
+    MUSICFOLDERS /
+    COLLECTION ENTRIES="4870"
+        ENTRY MODIFIED_DATE="2021/4/19"
+              MODIFIED_TIME="42581"
+              AUDIO_ID="base64code=="
+              TITLE="7 Skies (original mix edit)"
+              ARTIST="7 Skies"
+            LOCATION DIR="/:Natalia/:Music/:!Trance/:"
+                    FILE="7 Skies - 7 Skies (original mix edit).flac"
+                    VOLUME="F:"
+                    VOLUMEID="fa8afc35"
+                    /
+            ALBUM OF_TRACKS="13"
+                  TRACK="2"
+                  TITLE="A State of Trance Radio Top 15 March 2010"
+                  /
+            MODIFICATION_INFO AUTHOR_TYPE="user"
+                              /
+            <INFO BITRATE="1411200"
+                  GENRE="House"
+                  LABEL="Island Records; Universal Music"
+                  COVERARTID="041/JRPSP0CJEEGD4C1443OLCYYYOHSC"
+                  KEY="3m"
+                  PLAYCOUNT="1"
+                  PLAYTIME="228"
+                  PLAYTIME_FLOAT="227.462692"
+                  RANKING="128"
+                  IMPORT_DATE="2020/6/16"
+                  LAST_PLAYED="2020/6/16"
+                  RELEASE_DATE="2010/1/1"
+                  FLAGS="12"
+                  FILESIZE="26686">
+            </INFO>
+            <TEMPO BPM="133.999252"
+                   BPM_QUALITY="100.000000">
+            </TEMPO>
+			<LOUDNESS PEAK_DB="0.000265"
+                      PERCEIVED_DB="4.261261"
+                      ANALYZED_DB="4.261261">
+            </LOUDNESS>
+			<MUSICAL_KEY VALUE="23">
+            </MUSICAL_KEY>
+			<CUE_V2 NAME="AutoGrid"
+                    DISPL_ORDER="0"
+                    TYPE="4"
+                    START="2.901822"
+                    LEN="0.000000"
+                    REPEATS="-1"
+                    HOTCUE="0">
+            </CUE_V2>
+		</ENTRY>
+    ...
+    </COLLECTION>
+
+    <SETS ENTRIES="6">
+		<SET TITLE="Step Sequencer- Essential Drums Vol.1" ARTIST="Native Instruments" QUANT_VAlUE="4" QUANT_STATE="0">
+			<LOCATION DIR="/:" FILE="2018y08m29d_17h20m54s440570171123772.set" VOLUME="C:" VOLUMEID="7e23be40"></LOCATION>
+			<ALBUM TITLE="Step Sequencer: Essential Drums Vol.1"></ALBUM>
+			<MODIFICATION_INFO AUTHOR_TYPE="importer"></MODIFICATION_INFO>
+			<INFO COVERARTID="058/03KYITCGLUDWDCLQPXTABMN0JDFD" IMPORT_DATE="2018/8/29" LAST_PLAYED="2016/10/11" FLAGS="2"></INFO>
+			<TEMPO BPM="120.000000"></TEMPO>
+			<SLOT KEYLOCK="0" FXENABLE="1" PUNCHMODE="0" ACTIVE_CELL_INDEX="0"></SLOT>
+			<SLOT KEYLOCK="0" FXENABLE="1" PUNCHMODE="0" ACTIVE_CELL_INDEX="0"></SLOT>
+			<SLOT KEYLOCK="0" FXENABLE="1" PUNCHMODE="0" ACTIVE_CELL_INDEX="0"></SLOT>
+			<SLOT KEYLOCK="0" FXENABLE="1" PUNCHMODE="0" ACTIVE_CELL_INDEX="0"></SLOT>
+		</SET>
+        ...
+    </SETS>
+
+    <PLAYLISTS>
+		<NODE TYPE="FOLDER" NAME="$ROOT">
+			<SUBNODES COUNT="50">
+				<NODE TYPE="PLAYLIST"
+                      NAME="_LOOPS">
+					<PLAYLIST ENTRIES="0"
+                              TYPE="LIST"
+                              UUID="f0a8bfe00dc64954ae4e4af1d0b19755">
+                    </PLAYLIST>
+				</NODE>
+
+				<NODE TYPE="PLAYLIST"
+                      NAME="_RECORDINGS">
+					<PLAYLIST ENTRIES="3"
+                              TYPE="LIST"
+                              UUID="24e80018f8144edc952ca2f920232fca">
+						<ENTRY>
+							<PRIMARYKEY TYPE="TRACK"
+                                        KEY="E:/:YandexDisk/:SA MixTapes/:2022-12-29_19h14m32.wav">
+                            </PRIMARYKEY>
+						</ENTRY>
+						<ENTRY>
+							<PRIMARYKEY TYPE="TRACK" KEY="E:/:YandexDisk/:SA MixTapes/:2022-12-29_19h14m32_03h18m08.wav"></PRIMARYKEY>
+						</ENTRY>
+						<ENTRY>
+							<PRIMARYKEY TYPE="TRACK" KEY="E:/:YandexDisk/:SA MixTapes/:2022-12-29_19h14m32_06h36m17.wav"></PRIMARYKEY>
+						</ENTRY>
+					</PLAYLIST>
+				</NODE>
+
+				<NODE TYPE="PLAYLIST" NAME="Deep Warmup">
+					<PLAYLIST ENTRIES="128" TYPE="LIST" UUID="bda6a275813e405ea3ae158d9764191f">
+						<ENTRY>
+							<PRIMARYKEY TYPE="TRACK"
+                                        KEY="C:/:Users/:okean/:YandexDisk/:DJ Full Tracks/:Style - Tropical/:Rob Makzem - Dont You Want Me (Club Version).mp3">
+                            </PRIMARYKEY>
+						</ENTRY>
+						...
+                     </PLAYLIST>
+                </NODE>
+
+                ...
+			</SUBNODES>
+		</NODE>
+	</PLAYLISTS>
+
+	<INDEXING>
+		<SORTING_INFO PATH="$COLLECTION">
+			<CRITERIA ATTRIBUTE="4"
+                      DIRECTION="0">
+            </CRITERIA>
+		</SORTING_INFO>
+		<SORTING_INFO PATH="$HASH">
+        </SORTING_INFO>
+	</INDEXING>
+</NML>
