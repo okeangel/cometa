@@ -28,6 +28,7 @@ and this project adheres to
 - Auto resuming if previous correlation calculations was abruptly interrupted.
 - Mixing large and small files - speeds up fingerprint scanning.
 - You can now create fingerprint from audio up to 1.5 hours.
+- Now the fingerprints in the dumps are sorted by length, the shortest first.
 
 ### Performance
 
