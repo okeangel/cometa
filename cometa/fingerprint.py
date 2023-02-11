@@ -45,6 +45,10 @@ BYTES_PER_CORRELATION_PAIR = 1150
 DUMP_SIZE_LIMIT = 3_000_000
 
 
+def fix(num, width=9):
+    return str(num)[:width].ljust(width)
+
+
 def str_no_microseconds(elapsed):
     return str(elapsed).split('.')[0]
 
@@ -149,6 +153,32 @@ def overview_audio_tracks(music_data_dir):
 
 # -------------------- correlation --------------------
 
+def truncate_xmpz(fpz_a, bit_length_b):
+    return fpz_a[: bit_length_b]
+
+
+def get_xmpz_correlation(fpz_a, bit_length_a, fpz_b, bit_length_b):
+    """Return correlation between lists of numbers"""
+
+    if fpz_a == 0 or fpz_b == 0:
+        # Error checking in main program should prevent us from ever being
+        # able to get here.
+        raise ValueError('Empty lists cannot be correlated.')
+
+    #if isinstance(fpz_a, gmpy2.mpz):
+    if bit_length_a == bit_length_b:
+        bits_different = gmpy2.hamdist(fpz_a, fpz_b)
+    elif bit_length_a > bit_length_b:
+        bits_different = gmpy2.hamdist(
+            truncate_xmpz(fpz_a, bit_length_b),
+            fpz_b,
+        )
+    else:
+        raise ValueError('Fingerprint B longer than A')
+
+    return 1 - bits_different / bit_length_b
+
+
 def get_ref_correlation(nums_a, nums_b):
     """Return correlation between lists of numbers"""
 
@@ -237,11 +267,11 @@ def get_quick_ref_correlation(pair):
     }
 
 
-def get_quick_gmpy2_correlation(pair):
-    correlation = get_correlation(pair[0]['fingerprint'],
-                                  pair[0]['bit_length'],
-                                  pair[1]['fingerprint'],
-                                  pair[1]['bit_length'])
+def get_quick_xmpz_correlation(pair):
+    correlation = get_xmpz_correlation(pair[0]['xmpz_fingerprint'],
+                                       pair[0]['fingerprint_bit_length'],
+                                       pair[1]['xmpz_fingerprint'],
+                                       pair[1]['fingerprint_bit_length'])
     return {
         'a': pair[0]['path'],
         'b': pair[1]['path'],
@@ -250,7 +280,7 @@ def get_quick_gmpy2_correlation(pair):
     }
 
 
-def xmpz_bitarray(nums, item_bit_lenght):
+def mpz_bitarray(nums, item_bit_lenght):
     long = 0
     for x in reversed(nums):
         long <<= item_bit_lenght
@@ -259,7 +289,7 @@ def xmpz_bitarray(nums, item_bit_lenght):
 
 
 def get_xmpz_update(track):
-    xmpz_fingerprint = xmpz_bitarray(track['fingerprint'], BITS_PER_SAMPLE)
+    xmpz_fingerprint = mpz_bitarray(track['fingerprint'], BITS_PER_SAMPLE)
     fingerprint_bit_length = len(track['fingerprint']) * BITS_PER_SAMPLE
     track.update({
         'xmpz_fingerprint': xmpz_fingerprint,
@@ -277,13 +307,20 @@ def calculate_correlations(tracks,
                            method='ref',
                            profiling=False,
                            debug=False):
-    add_xmpz_fingerprints_to(tracks)
+    if method == 'ref':
+        job = get_quick_ref_correlation
+    elif method == 'xmpz':
+        add_xmpz_fingerprints_to(tracks)
+        job = get_quick_xmpz_correlation
+    else:
+        raise ValueError(f'Unknown method: {method}.')
+
     corr_start = time.perf_counter_ns()
     processed_tracks_path = music_data_dir / 'processed_tracks.jsonl'
     processed_dumps_path = music_data_dir / 'processed_dumps.jsonl'
     func_start = datetime.datetime.now()
     print(f'Calculaing correlations started at',
-          f'{str_no_microseconds(func_start)}.')
+          f'{str_no_microseconds(func_start)}, method is: {method}.')
 
     pairs_expected = (len(tracks) ** 2 - len(tracks)) // 2
     pairs_processed = 0
@@ -301,7 +338,7 @@ def calculate_correlations(tracks,
         
 
     print(' Iter |    Chunk Size      |   Performance  |'
-          '  Elapsed |  End in  | Progress')
+          '  Elapsed  |  End in  | Progress')
     while tracks:
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
@@ -310,7 +347,7 @@ def calculate_correlations(tracks,
             DUMP_SIZE_LIMIT,
         )
         if profiling or debug:
-            places_left = min(places_left, pairs_expected // 5)
+            places_left = min(places_left, pairs_expected // 3)
         processed = []
         while places_left > 0 and tracks:
             chosen_track = tracks.pop()
@@ -322,18 +359,17 @@ def calculate_correlations(tracks,
         share = len(pairs_chunk) / pairs_expected
         print(f'{len(pairs_chunk):8} ({share:7.2%}) | ', end='')
 
-        iter_start = datetime.datetime.now()
+        iter_start = time.perf_counter_ns()
         if profiling:
-            results_chunk = list(map(get_quick_ref_correlation, pairs_chunk))
+            results_chunk = list(map(job, pairs_chunk))
         else:
             with multiprocessing.Pool() as pool:
-                results_chunk = pool.map(get_quick_ref_correlation,
-                                         pairs_chunk)
-        elapsed = datetime.datetime.now() - iter_start
+                results_chunk = pool.map(job, pairs_chunk)
+        iter_elapsed = (time.perf_counter_ns() - iter_start) / 10**9
 
-        performance = len(results_chunk) / elapsed.seconds
+        performance = len(results_chunk) / iter_elapsed
         print(f'{performance:7.0f} corr/s | ', end='')
-        print(f'{str_no_microseconds(elapsed):>8} | ', end='')
+        print(f'{fix(iter_elapsed)} | ', end='')
         pairs_processed += len(results_chunk)
 
         if profiling or debug:
@@ -369,12 +405,16 @@ def calculate_correlations(tracks,
           f' ({corr_elapsed} s).')
 
 
-def collect_correlations(music_data_dir, profiling=False, debug=False):
+def collect_correlations(music_data_dir,
+                         method='ref',
+                         profiling=False,
+                         debug=False):
     tracks = load_fingerprints(music_data_dir)
     print('Total audio fingerprints:', len(tracks))
 
     calculate_correlations(tracks,
                            music_data_dir,
+                           method=method,
                            profiling=profiling,
                            debug=debug)
 
