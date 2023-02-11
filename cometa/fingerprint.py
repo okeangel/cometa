@@ -326,7 +326,7 @@ def calculate_correlations(tracks,
         if profiling:
             results_chunk = list(map(get_quick_ref_correlation, pairs_chunk))
         else:
-            with multiprocessing.get_context('spawn').Pool() as pool:
+            with multiprocessing.Pool() as pool:
                 results_chunk = pool.map(get_quick_ref_correlation,
                                          pairs_chunk)
         elapsed = datetime.datetime.now() - iter_start
