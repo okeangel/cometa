@@ -25,7 +25,7 @@ STEP = 1
 MIN_OVERLAP = 20
 
 # threshold above which tracks are considered similar
-# 1% of best matches has correlation greater than 0.577 on 83k files
+# 1% of best matches has correlation greater than 0.577 on 83k tracks
 THRESHOLD = 0.58
 
 # The size (in bytes) reserved in memory for pair correlation calculations.
@@ -127,9 +127,9 @@ def count_extentions(paths):
     return exts
 
 
-def overview_audio_files(music_data_dir):
-    paths = ([pathlib.Path(file['path'])
-              for file in load_fingerprints(music_data_dir)])
+def overview_audio_tracks(music_data_dir):
+    paths = ([pathlib.Path(track['path'])
+              for track in load_fingerprints(music_data_dir)])
     print('Audio detected in files with extentions:')
     print(count_extentions(paths))
 
@@ -233,44 +233,46 @@ def get_quick_correlation(pair):
 
 
 # TODO: generator??
-def calculate_correlations(files, music_data_dir, profiling=False):
+def calculate_correlations(tracks, music_data_dir, profiling=False):
     corr_start = time.perf_counter_ns()
-    processed_files_path = music_data_dir / 'processed_files.jsonl'
-    processed_saves_path = music_data_dir / 'processed_saves.jsonl'
+    processed_tracks_path = music_data_dir / 'processed_tracks.jsonl'
+    processed_dumps_path = music_data_dir / 'processed_dumps.jsonl'
     func_start = datetime.datetime.now()
     print(f'Calculaing correlations started at',
           f'{str_no_microseconds(func_start)}.')
 
-    pairs_expected = (len(files) ** 2 - len(files)) // 2
+    pairs_expected = (len(tracks) ** 2 - len(tracks)) // 2
     pairs_processed = 0
     iteration = 1
     print(f'Expected number of pairs: {pairs_expected:,}.')
 
-    if processed_files_path.exists():
+    if processed_tracks_path.exists():
         print('Found interrupted process. '
               'Previously processed data will be skipped.')
-        files = [file for file in files
-                 if file['path'] not in jsonl.load(processed_files_path)]
-        pairs_processed = pairs_expected - (len(files) ** 2 - len(files)) // 2
+        tracks = [track for track in tracks
+                 if track['path'] not in jsonl.load(processed_tracks_path)]
+        pairs_processed = pairs_expected - (len(tracks) ** 2 - len(tracks)) // 2
         print(f'Current progress: {pairs_processed/pairs_expected:.0%}')
-        iteration = len(jsonl.load(processed_saves_path)) + 1
+        iteration = len(jsonl.load(processed_dumps_path)) + 1
         
 
     print(' Iter |    Chunk Size      |   Performance  |'
           '  Elapsed |  End in  | Progress')
-    while files:
+    while tracks:
         pairs_chunk = []
         free_memory = psutil.virtual_memory()[1]
         places_left = min(
-            free_memory // BYTES_PER_CORRELATION_PAIR - len(files),
+            free_memory // BYTES_PER_CORRELATION_PAIR - len(tracks),
             DUMP_SIZE_LIMIT,
         )
+        if profiling:
+            places_left = min(places_left, pairs_expected // 5)
         processed = []
-        while places_left > 0 and files:
-            chosen_file = files.pop()
-            processed.append(chosen_file['path'])
-            pairs_chunk.extend([[chosen_file, file] for file in files])
-            places_left -= len(files)
+        while places_left > 0 and tracks:
+            chosen_track = tracks.pop()
+            processed.append(chosen_track['path'])
+            pairs_chunk.extend([[chosen_track, track] for track in tracks])
+            places_left -= len(tracks)
 
         print(f'{iteration:5} | ', end='')
         share = len(pairs_chunk) / pairs_expected
@@ -300,23 +302,22 @@ def calculate_correlations(files, music_data_dir, profiling=False):
         jsonl.dump(results_chunk, corrs_path)  # generator yield here
         #  -> to external saving or sending or analysing or other handling
         # async call or thread for dumping/sending, but not for calculations
-        jsonl.dump(processed, processed_files_path, mode='a')
-        jsonl.dump([str(corrs_path)], processed_saves_path, mode='a')
+        jsonl.dump(processed, processed_tracks_path, mode='a')
+        jsonl.dump([str(corrs_path)], processed_dumps_path, mode='a')
 
         end_in_seconds = (pairs_expected - pairs_processed) / performance
         end_in = datetime.timedelta(seconds=end_in_seconds)
         print(f'{str_no_microseconds(end_in):>8} | ', end='')
         print(f'{pairs_processed / pairs_expected:4.0%}')
         iteration += 1
-    
-    save_paths = jsonl.load(processed_saves_path)
+
     for child in music_data_dir.glob('correlations_*.jsonl'):
         if (child.is_file()
-            and not str(child) in save_paths):
+            and not str(child) in jsonl.load(processed_dumps_path)):
             child.unlink()
 
-    processed_files_path.unlink(missing_ok=True)
-    processed_saves_path.unlink(missing_ok=True)
+    processed_tracks_path.unlink(missing_ok=True)
+    processed_dumps_path.unlink(missing_ok=True)
     func_elapsed = datetime.datetime.now() - func_start
     corr_elapsed = (time.perf_counter_ns() - corr_start) / 10**9
     print(f'Task completed in {str_no_microseconds(func_elapsed)}'
@@ -324,26 +325,26 @@ def calculate_correlations(files, music_data_dir, profiling=False):
 
 
 def collect_correlations(music_data_dir, profiling=False):
-    files = load_fingerprints(music_data_dir)
-    print('Total audio fingerprints:', len(files))
+    tracks = load_fingerprints(music_data_dir)
+    print('Total audio fingerprints:', len(tracks))
 
-    calculate_correlations(files, music_data_dir, profiling)
+    calculate_correlations(tracks, music_data_dir, profiling)
     print(f'Correlation data saved to "{music_data_dir}".')
 
 
-def print_correlation(source_path, target_path):
-    source_file = calculate_fingerprint({'path': source_path})
-    target_file = calculate_fingerprint({'path': target_path})
+def print_correlation(ref_path, test_path):
+    ref_track = calculate_fingerprint({'path': ref_path})
+    test_track = calculate_fingerprint({'path': test_path})
     corr = cross_correlation(
-        source_file['fingerprint'],
-        target_file['fingerprint'],
+        ref_track['fingerprint'],
+        test_track['fingerprint'],
         SPAN,
         STEP,
     )
 
     print(
-        f"len_source = {len(source_file['fingerprint'])},",
-        f"len_target = {len(target_file['fingerprint'])}",
+        f"len_source = {len(ref_track['fingerprint'])},",
+        f"len_target = {len(test_track['fingerprint'])}",
     )
 
     max_corr_index = max_index(corr)
@@ -361,8 +362,8 @@ def print_correlation(source_path, target_path):
             (
                 '%s and %s match with correlation of %.4f at offset %i'
                 % (
-                    source_path,
-                    target_path,
+                    ref_path,
+                    test_path,
                     corr[max_corr_index],
                     max_corr_offset,
                 )
