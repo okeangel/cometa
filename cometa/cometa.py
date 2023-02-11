@@ -27,7 +27,7 @@ if __name__ == '__main__':
     print('Do you want to overview collected fingerprints?\n'
           '(type "y" otherwise task will be skipped)')
     if input('μ: ').lower() in ['y', 'yes']:
-        fingerprint.overview_audio_files(music_data_dir)
+        fingerprint.overview_audio_tracks(music_data_dir)
 
     print('Do you want to calculate correlations?\n'
           '(type "y" otherwise task will be skipped)')
