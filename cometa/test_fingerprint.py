@@ -111,16 +111,7 @@ def check_results_correct(music_data_dir):
     check_identity_correlations(music_data_dir)
 
 
-if __name__ == '__main__':
-    roaming_dir, local_dir = config.get_data_paths()
-    music_dirs, music_data_dir = config.get_profile_from_config(
-        config.get_config_dir() / 'main.ini',
-        'test',
-    )
-    local_dir.mkdir(exist_ok=True, parents=True)
-
-    when = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-
+def do_profiling(music_dirs, music_data_dir):
     cProfile.run(
         """
 fingerprint.collect_fingerprints(
@@ -139,3 +130,41 @@ fingerprint.collect_correlations(
         """, local_dir / f'{config.APP_VERSION}_correlations_{when}.pstats')
 
     check_results_correct(music_data_dir)
+
+def test_correlation_method(music_dirs, music_data_dir, method='ref'):
+    if not music_data_dir.joinpath('correlations_001.jsonl').is_file():
+        if not music_data_dir.joinpath('fingerprints.jsonl').is_file():
+            fingerprint.collect_fingerprints(
+                music_dirs,
+                music_data_dir,
+            )
+
+        fingerprint.collect_correlations(
+            music_data_dir,
+            method=method,
+            profiling=False,
+            debug=True,
+        )
+
+    check_identity_correlations(music_data_dir)
+
+
+def test_correlation(music_dirs, music_data_dir):
+    for method in ['ref', 'xmpz']:
+        test_correlation_method(music_dirs, music_data_dir, method=method)
+
+
+if __name__ == '__main__':
+    roaming_dir, local_dir = config.get_data_paths()
+    music_dirs, music_data_dir = config.get_profile_from_config(
+        config.get_config_dir() / 'main.ini',
+        'test',
+    )
+    local_dir.mkdir(exist_ok=True, parents=True)
+
+    when = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+    test_correlation(music_dirs, music_data_dir)
+    if input('Type "y" if you want to run profiling: ').lower() == 'y':
+        do_profiling(music_dirs, music_data_dir)
+    print('Test OK.')
