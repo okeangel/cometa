@@ -64,11 +64,16 @@ def calculate_fingerprint(file, length=SAMPLE_TIME):
                 file['path'],
             )
         )
+        duration_start_index = fpcalc_out.find('DURATION=') + 9
+        duration_end_index = fpcalc_out.find('\n')
+        duration = int(fpcalc_out[duration_start_index:duration_end_index])
 
         fingerprint_index = fpcalc_out.find('FINGERPRINT=') + 12
         fingerprint = list(map(int, fpcalc_out[fingerprint_index:].split(',')))
     except ValueError:
+        duration = 0
         fingerprint = []
+    file['duration'] = duration
     file['fingerprint'] = fingerprint
     return file
 
