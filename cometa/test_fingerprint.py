@@ -131,7 +131,10 @@ fingerprint.collect_correlations(
 
     check_results_correct(music_data_dir)
 
-def test_correlation_method(music_dirs, music_data_dir, method='ref'):
+def test_correlation_method(music_dirs,
+                            music_data_dir,
+                            method='ref',
+                            frame_time=5400):
     if not music_data_dir.joinpath('correlations_001.jsonl').is_file():
         if not music_data_dir.joinpath('fingerprints.jsonl').is_file():
             fingerprint.collect_fingerprints(
@@ -142,6 +145,7 @@ def test_correlation_method(music_dirs, music_data_dir, method='ref'):
         fingerprint.collect_correlations(
             music_data_dir,
             method=method,
+            frame_time=frame_time,
             profiling=False,
             debug=True,
         )
@@ -150,8 +154,11 @@ def test_correlation_method(music_dirs, music_data_dir, method='ref'):
 
 
 def test_correlation(music_dirs, music_data_dir):
-    for method in ['ref', 'xmpz']:
-        test_correlation_method(music_dirs, music_data_dir, method=method)
+    for method in ['ref', 'xmpz', 'combi']:
+        test_correlation_method(music_dirs,
+                                music_data_dir,
+                                method=method,
+                                frame_time=5400)
 
 
 if __name__ == '__main__':

@@ -12,8 +12,9 @@ import gmpy2
 import jsonl
 
 
-# fpcalc uses a fixed fingerprint sample size
+# fpcalc uses fixed fingerprint sample size and frequency
 BITS_PER_SAMPLE=32
+SAMPLES_PER_SECOND = 8
 
 # seconds to sample audio file for fingerprint
 SAMPLE_TIME = 5400
@@ -54,12 +55,12 @@ def str_no_microseconds(elapsed):
 
 # -------------------- fingerprint --------------------
 
-def calculate_fingerprint(file):
+def calculate_fingerprint(file, length=SAMPLE_TIME):
     try:
         fpcalc_out = subprocess.getoutput(
             'fpcalc -raw -length %i "%s"'
             % (
-                SAMPLE_TIME,
+                length,
                 file['path'],
             )
         )
@@ -72,7 +73,7 @@ def calculate_fingerprint(file):
     return file
 
 
-def get_fingerprints(files, profiling=False):
+def get_fingerprints(files, length=SAMPLE_TIME, profiling=False):
     if profiling:
         tasks = map(calculate_fingerprint, files)
         results = [result for result in tqdm.tqdm(tasks, total=len(files))]
@@ -109,7 +110,11 @@ def load_fingerprints(music_data_dir):
     return files
 
 
-def collect_fingerprints(dirs_to_scan, path_to_dump, profiling=False):
+def collect_fingerprints(dirs_to_scan,
+                         path_to_dump,
+                         profiling=False,
+                         frame_time=SAMPLE_TIME,
+                         frame_align='head'):
     fp_start = time.perf_counter_ns()
     print('Current task: create audio fingerprints.')
     print('Collecting file paths... ', end='')
@@ -118,7 +123,7 @@ def collect_fingerprints(dirs_to_scan, path_to_dump, profiling=False):
     random.shuffle(files)
 
     print('Creating audio fingerprints.')
-    files = get_fingerprints(files, profiling)
+    files = get_fingerprints(files, length=frame_time, profiling=profiling)
 
     dump_fingerprints(path_to_dump, files)
     fp_elapsed = (time.perf_counter_ns() - fp_start) / 10**9
@@ -263,55 +268,56 @@ def get_quick_ref_correlation(pair):
         'a': pair[0]['path'],
         'b': pair[1]['path'],
         'corr': correlation,
-        'offset': 0,
     }
 
 
 def get_quick_xmpz_correlation(pair):
     correlation = get_xmpz_correlation(pair[0]['xmpz_fingerprint'],
-                                       pair[0]['fingerprint_bit_length'],
+                                       pair[0]['frame_bit_lenght'],
                                        pair[1]['xmpz_fingerprint'],
-                                       pair[1]['fingerprint_bit_length'])
+                                       pair[1]['frame_bit_lenght'])
     return {
         'a': pair[0]['path'],
         'b': pair[1]['path'],
         'corr': correlation,
-        'offset': 0,
     }
 
 
-def mpz_bitarray(nums, item_bit_lenght):
-    long = 0
-    for x in reversed(nums):
-        long <<= item_bit_lenght
-        long += x
-    return gmpy2.xmpz(long)  # try to move to 1st line
+def get_quick_combi_correlation(pair):
+    bit_length_a = pair[0]['frame_bit_lenght']
+    bit_length_b = pair[1]['frame_bit_lenght']
 
+    if bit_length_a == bit_length_b:
+        method = 'mpz'
+        bits_different = gmpy2.hamdist(pair[0]['mpz_fingerprint'],
+                                       pair[1]['mpz_fingerprint'])
+        correlation = 1 - bits_different / bit_length_a
+    else:
+        method = 'ref'
+        correlation = get_ref_correlation(pair[0]['fingerprint'],
+                                          pair[1]['fingerprint'])
 
-def get_xmpz_update(track):
-    xmpz_fingerprint = mpz_bitarray(track['fingerprint'], BITS_PER_SAMPLE)
-    fingerprint_bit_length = len(track['fingerprint']) * BITS_PER_SAMPLE
-    track.update({
-        'xmpz_fingerprint': xmpz_fingerprint,
-        'fingerprint_bit_length': fingerprint_bit_length,
-    })
-
-
-def add_xmpz_fingerprints_to(seq):
-    [get_xmpz_update(track) for track in seq]
+    return {
+        'a': pair[0]['path'],
+        'b': pair[1]['path'],
+        'corr': correlation,
+        'method': method,
+    }
 
 
 # TODO: generator??
 def calculate_correlations(tracks,
                            music_data_dir,
                            method='ref',
+                           threshold=0,
                            profiling=False,
                            debug=False):
     if method == 'ref':
         job = get_quick_ref_correlation
     elif method == 'xmpz':
-        add_xmpz_fingerprints_to(tracks)
         job = get_quick_xmpz_correlation
+    elif method == 'combi':
+        job = get_quick_combi_correlation
     else:
         raise ValueError(f'Unknown method: {method}.')
 
@@ -372,11 +378,11 @@ def calculate_correlations(tracks,
         print(f'{fix(iter_elapsed)} | ', end='')
         pairs_processed += len(results_chunk)
 
-        if profiling or debug:
-            results_chunk = [pair for pair in results_chunk]
-        else:
+        if threshold:
             results_chunk = [pair for pair in results_chunk
-                             if pair['corr'] > THRESHOLD]
+                             if pair['corr'] > threshold]
+        else:
+            results_chunk = [pair for pair in results_chunk]
         corrs_path = music_data_dir.joinpath(
             f'correlations_{iteration:03}.jsonl'
         )
@@ -405,25 +411,70 @@ def calculate_correlations(tracks,
           f' ({corr_elapsed} s).')
 
 
+def mpz_bitarray(nums, item_bit_lenght):
+    long = 0
+    for x in reversed(nums):
+        long <<= item_bit_lenght
+        long += x
+    return gmpy2.mpz(long)  # try to move to 1st line
+
+
+def get_frame(track, frame_time, frame_align):
+    fingerprint_len = len(track['fingerprint'])
+    frame_len = frame_time * SAMPLES_PER_SECOND
+
+    if frame_align == 'middle':
+        diff = fingerprint_len - frame_len
+        if diff > 0:
+            padding, appendix = divmod(diff, 2)
+            frame = track['fingerprint'][padding: -padding - appendix]
+        else:
+            frame = track['fingerprint']
+    elif frame_align == 'head':
+        frame = track['fingerprint'][:frame_len]
+    else:
+        raise ValueError(f'Unknown frame alignement: {method}.')
+
+    frame_bit_lenght = min(frame_len, fingerprint_len) * BITS_PER_SAMPLE
+    mpz_fp = mpz_bitarray(frame, BITS_PER_SAMPLE)
+
+    return {
+        'path': track['path'],
+        'fingerprint': frame,
+        'mpz_fingerprint': mpz_fp,
+        'xmpz_fingerprint': gmpy2.xmpz(mpz_fp),
+        'frame_bit_lenght': frame_bit_lenght,
+        'frame_time': frame_time,
+        'frame_align': frame_align,
+    }
+
+
+
 def collect_correlations(music_data_dir,
-                         method='ref',
+                         frame_time=SAMPLE_TIME,
+                         frame_align='head',
+                         method='combi',
+                         threshold=0,
                          profiling=False,
                          debug=False):
-    tracks = load_fingerprints(music_data_dir)
-    print('Total audio fingerprints:', len(tracks))
+    frames = [get_frame(track, frame_time, frame_align)
+              for track in load_fingerprints(music_data_dir)]
 
-    calculate_correlations(tracks,
+    print('Total audio fingerprints:', len(frames))
+
+    calculate_correlations(frames,
                            music_data_dir,
                            method=method,
+                           threshold=threshold,
                            profiling=profiling,
                            debug=debug)
 
     print(f'Correlation data saved to "{music_data_dir}".')
 
 
-def print_correlation(ref_path, test_path):
-    ref_track = calculate_fingerprint({'path': ref_path})
-    test_track = calculate_fingerprint({'path': test_path})
+def print_correlation(ref_path, test_path, length=SAMPLE_TIME):
+    ref_track = calculate_fingerprint({'path': ref_path}, length=length)
+    test_track = calculate_fingerprint({'path': test_path}, length=length)
     corr = cross_correlation(
         ref_track['fingerprint'],
         test_track['fingerprint'],
