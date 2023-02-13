@@ -101,20 +101,6 @@ def get_paths(basic_paths):
     return paths
 
 
-def dump_fingerprints(music_data_dir, files):
-    print('Saving fingerprints...')
-    dump_path = music_data_dir.joinpath('fingerprints')
-    jsonl.dump(files, dump_path)
-    print(f'Audio fingerprints saved to "{dump_path}".')
-
-
-def load_fingerprints(music_data_dir):
-    dump_path = music_data_dir.joinpath('fingerprints')
-    files = jsonl.load(dump_path)
-    print(f'Audio fingerprints loaded from "{dump_path}".')
-    return files
-
-
 def collect_fingerprints(dirs_to_scan,
                          path_to_dump,
                          profiling=False,
@@ -130,7 +116,11 @@ def collect_fingerprints(dirs_to_scan,
     print('Creating audio fingerprints.')
     files = get_fingerprints(files, length=frame_time, profiling=profiling)
 
-    dump_fingerprints(path_to_dump, files)
+    print('Saving fingerprints...')
+    dump_path = music_data_dir.joinpath('fingerprints')
+    jsonl.dump(files, dump_path)
+    print(f'Audio fingerprints saved to "{dump_path}".')
+
     fp_elapsed = (time.perf_counter_ns() - fp_start) / 10**9
     print(f'Task done in {fp_elapsed} s.')
 
@@ -148,8 +138,9 @@ def count_extentions(paths):
 
 
 def overview_audio_tracks(music_data_dir):
-    paths = ([pathlib.Path(track['path'])
-              for track in load_fingerprints(music_data_dir)])
+    dump_path = music_data_dir.joinpath('fingerprints')
+    tracks = jsonl.load(dump_path)
+    paths = [pathlib.Path(track['path']) for track in tracks]
     print('Audio detected in files with extentions:')
     print(count_extentions(paths))
 
@@ -547,11 +538,14 @@ def collect_correlations(music_data_dir,
                          threshold=0,
                          profiling=False,
                          debug=False):
+
     start_loading = time.perf_counter_ns()
-    tracks = load_fingerprints(music_data_dir)
+    dump_path = music_data_dir.joinpath('fingerprints')
+    print(f'Loading from "{dump_path}"...')
+    tracks = jsonl.load(dump_path)
     elapsed_loading = (time.perf_counter_ns() - start_loading) / 10 ** 9
-    print(f'Fingerprints loaded in {fix(elapsed_loading)} s.')
-    print('Total audio fingerprints:', len(tracks))
+    print(f'{len(tracks)} audio fingerprints'
+          f' loaded in {fix(elapsed_loading)} s.')
 
     start_framing = time.perf_counter_ns()
     frames = [get_frame(track, frame_time, frame_align) for track in tracks]
