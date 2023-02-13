@@ -317,6 +317,10 @@ def calculate_correlations(tracks,
                            threshold=0,
                            profiling=False,
                            debug=False):
+    for child in music_data_dir.glob('correlations*.jsonl'):
+        if child.is_file():
+            child.unlink()
+
     if method == 'ref':
         job = get_quick_ref_correlation
     elif method == 'xmpz':
@@ -363,7 +367,8 @@ def calculate_correlations(tracks,
         while places_left > 0 and tracks:
             chosen_track = tracks.pop()
             processed.append(chosen_track['path'])
-            pairs_chunk.extend([[chosen_track, track] for track in tracks])
+            pairs_chunk.extend([[chosen_track, track]
+                                 for track in reversed(tracks)])
             places_left -= len(tracks)
 
         print(f'{iteration:5} | ', end='')
@@ -386,12 +391,16 @@ def calculate_correlations(tracks,
         if threshold:
             results_chunk = [pair for pair in results_chunk
                              if pair['corr'] > threshold]
+            corrs_path = music_data_dir / 'correlations.jsonl'
+            mode = 'a'
         else:
             results_chunk = [pair for pair in results_chunk]
-        corrs_path = music_data_dir.joinpath(
-            f'correlations_{iteration:03}.jsonl'
-        )
-        jsonl.dump(results_chunk, corrs_path)  # generator yield here
+            corrs_path = music_data_dir.joinpath(
+                f'correlations_{iteration:03}.jsonl'
+            )
+            mode = 'w'
+        jsonl.dump(results_chunk, corrs_path, mode=mode)
+        # generator yield here
         #  -> to external saving or sending or analysing or other handling
         # async call or thread for dumping/sending, but not for calculations
         jsonl.dump(processed, processed_tracks_path, mode='a')
