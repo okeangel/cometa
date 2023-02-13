@@ -317,45 +317,78 @@ def calculate_correlations(tracks,
                            threshold=0,
                            profiling=False,
                            debug=False):
-    for child in music_data_dir.glob('correlations*.jsonl'):
-        if child.is_file():
-            child.unlink()
 
-    if method == 'ref':
-        job = get_quick_ref_correlation
-    elif method == 'xmpz':
-        job = get_quick_xmpz_correlation
-    elif method == 'combi':
-        job = get_quick_combi_correlation
+    calc_corr_start = time.perf_counter_ns()
+
+    print(f'Calculaing correlations started at '
+          f'{str_no_microseconds(datetime.datetime.now())}'
+          f', method is: {method}.')
+
+    # select correlation implementation
+
+    jobs = {
+        'combi': get_quick_combi_correlation,
+        'ref': get_quick_ref_correlation,
+        'xmpz': get_quick_xmpz_correlation,
+    }
+    if method in jobs:
+        job = jobs[method]
     else:
         raise ValueError(f'Unknown method: {method}.')
 
-    corr_start = time.perf_counter_ns()
-    processed_tracks_path = music_data_dir / 'processed_tracks.jsonl'
-    processed_dumps_path = music_data_dir / 'processed_dumps.jsonl'
-    func_start = datetime.datetime.now()
-    print(f'Calculaing correlations started at',
-          f'{str_no_microseconds(func_start)}, method is: {method}.')
+    # inititalize counters
 
-    pairs_expected = (len(tracks) ** 2 - len(tracks)) // 2
-    pairs_processed = 0
     iteration = 1
+    pairs_processed = 0
+    pairs_expected = (len(tracks) ** 2 - len(tracks)) // 2
+    handicap = 0
     print(f'Expected number of pairs: {pairs_expected:,}.')
 
+    # detect for files of previous processes
+
+    processed_tracks_path = music_data_dir / 'processed_tracks.jsonl'
+    processed_dumps_path = music_data_dir / 'processed_dumps.jsonl'
+    processed_elapsed_path = music_data_dir / 'processed_elapsed.jsonl'
+
+    detection_start = time.perf_counter_ns()
     if processed_tracks_path.exists():
+        # previous calculation was interrupted but saved its progress
         print('Found interrupted process. '
               'Previously processed data will be skipped.')
+
+        # update tracks to saved state
         tracks = [track for track in tracks
                  if track['path'] not in jsonl.load(processed_tracks_path)]
-        pairs_processed = pairs_expected - (len(tracks) ** 2 - len(tracks)) // 2
-        print(f'Current progress: {pairs_processed/pairs_expected:.0%}')
+
+        # update counters to saved state
         iteration = len(jsonl.load(processed_dumps_path)) + 1
-        
+        pairs_processed = (pairs_expected
+                           - (len(tracks) ** 2 - len(tracks))
+                              // 2)
+        handicap = pairs_processed
+        print(f'Current progress: {pairs_processed/pairs_expected:.0%}')
+    else:
+        # remove previous results as garbage
+        for child in music_data_dir.glob('correlations*.jsonl'):
+            if child.is_file():
+                child.unlink()
+    detection_elapsed = (time.perf_counter_ns() - detection_start) / 10**9
+    print(f'Previous results detection finished in'
+          f'{fix(detection_elapsed)} s.')
+
+    # start process in a loop
 
     print(' Iter |    Chunk Size      |   Performance  |'
           '  Elapsed  |  End in  | Progress')
     while tracks:
-        pairs_chunk = []
+
+        # TODO: define iteration as function
+
+        iter_start = time.perf_counter_ns()
+        print(f'{iteration:5}', end=' | ')
+
+        # set how much pairs need to create for best performance
+
         free_memory = psutil.virtual_memory()[1]
         places_left = min(
             free_memory // BYTES_PER_CORRELATION_PAIR - len(tracks),
@@ -363,54 +396,94 @@ def calculate_correlations(tracks,
         )
         if profiling or debug:
             places_left = min(places_left, pairs_expected // 3)
+
+        # create a batch for a job
+
+        batching_start = time.perf_counter_ns()
+        batch = []
         processed = []
         while places_left > 0 and tracks:
             chosen_track = tracks.pop()
-            processed.append(chosen_track['path'])
-            pairs_chunk.extend([[chosen_track, track]
+            batch.extend([[chosen_track, track]
                                  for track in reversed(tracks)])
+            processed.append(chosen_track['path'])
             places_left -= len(tracks)
+        batch_size = len(batch)
+        batching_elapsed = (time.perf_counter_ns() - batching_start) / 10**9
 
-        print(f'{iteration:5} | ', end='')
-        share = len(pairs_chunk) / pairs_expected
-        print(f'{len(pairs_chunk):8} ({share:7.2%}) | ', end='')
+        share = batch_size / pairs_expected
+        print(f'{batch_size:8} ({share:7.2%})', end=' | ')
 
-        iter_start = time.perf_counter_ns()
+        # calculate correlations in the batch
+
+        batch_corr_start = time.perf_counter_ns()
         if profiling:
-            results_chunk = list(map(job, pairs_chunk))
+            results_chunk = list(map(job, batch))
         else:
             with multiprocessing.Pool() as pool:
-                results_chunk = pool.map(job, pairs_chunk)
-        iter_elapsed = (time.perf_counter_ns() - iter_start) / 10**9
+                results_chunk = pool.map(job, batch)
+        batch_corr_elapsed = (time.perf_counter_ns()
+                              - batch_corr_start) / 10**9
 
-        performance = len(results_chunk) / iter_elapsed
-        print(f'{performance:7.0f} corr/s | ', end='')
-        print(f'{fix(iter_elapsed)} | ', end='')
-        pairs_processed += len(results_chunk)
+        performance = batch_size / batch_corr_elapsed
+        print(f'{performance:7.0f} corr/s', end=' | ')
+        print(f'{fix(batch_corr_elapsed)}', end=' | ')
+
+        # filter batch results
 
         if threshold:
             results_chunk = [pair for pair in results_chunk
                              if pair['corr'] > threshold]
-            corrs_path = music_data_dir / 'correlations.jsonl'
+
+        # dump batch result
+
+        dumping_start = time.perf_counter_ns()
+        if threshold:
+            file_name = 'correlations_filtered.jsonl'
             mode = 'a'
         else:
-            results_chunk = [pair for pair in results_chunk]
-            corrs_path = music_data_dir.joinpath(
-                f'correlations_{iteration:03}.jsonl'
-            )
+            file_name = f'correlations_all_{iteration:04}.jsonl'
             mode = 'w'
+        corrs_path  = music_data_dir / file_name
+        # if generator then yield here to return result
+        # to save, send, handle
+        # TODO: async dumping
         jsonl.dump(results_chunk, corrs_path, mode=mode)
-        # generator yield here
-        #  -> to external saving or sending or analysing or other handling
-        # async call or thread for dumping/sending, but not for calculations
+        dumping_elapsed = (time.perf_counter_ns() - dumping_start) / 10**9
+
+        # freeze progress
+
         jsonl.dump(processed, processed_tracks_path, mode='a')
         jsonl.dump([str(corrs_path)], processed_dumps_path, mode='a')
+        
+        # update counters
 
-        end_in_seconds = (pairs_expected - pairs_processed) / performance
-        end_in = datetime.timedelta(seconds=end_in_seconds)
-        print(f'{str_no_microseconds(end_in):>8} | ', end='')
-        print(f'{pairs_processed / pairs_expected:4.0%}')
         iteration += 1
+        pairs_processed += batch_size
+
+        # progress indication
+
+        iter_elapsed = (time.perf_counter_ns() - iter_start) / 10**9
+        end_in_seconds = ((pairs_expected - pairs_processed) * batch_size
+                          / iter_elapsed)                          
+        end_in = datetime.timedelta(seconds=end_in_seconds)
+        print(f'{str_no_microseconds(end_in):>8}', end=' | ')
+        print(f'{pairs_processed / pairs_expected:4.0%}', end=' | ')
+
+        # perf_couters indication
+
+        parts = [batching_elapsed, batch_corr_elapsed, dumping_elapsed]
+        other_elapsed = iter_elapsed - sum(parts)
+        parts.append(other_elapsed)
+
+        print(f'i: {fix(iter_elapsed)}', end=' = ')
+        print(f'b: {fix(batching_elapsed)}', end=' + ')
+        print(f'c: {fix(batch_corr_elapsed)}', end=' + ')
+        print(f'd: {fix(dumping_elapsed)}', end=' + ')
+        print(f'o: {fix(other_elapsed)}')
+        
+        jsonl.dump(parts, processed_elapsed_path, mode='a')
+        
 
     for child in music_data_dir.glob('correlations_*.jsonl'):
         if (child.is_file()
@@ -419,10 +492,13 @@ def calculate_correlations(tracks,
 
     processed_tracks_path.unlink(missing_ok=True)
     processed_dumps_path.unlink(missing_ok=True)
-    func_elapsed = datetime.datetime.now() - func_start
-    corr_elapsed = (time.perf_counter_ns() - corr_start) / 10**9
-    print(f'Task completed in {str_no_microseconds(func_elapsed)}'
-          f' ({corr_elapsed} s).')
+    calc_corr_elapsed = (time.perf_counter_ns() - calc_corr_start) / 10**9
+    calc_corr_timedelta = datetime.timedelta(seconds=calc_corr_elapsed)
+    mean_performance = (pairs_processed - handicap) / calc_corr_elapsed
+    print(f'Task completed in {str_no_microseconds(calc_corr_timedelta)}'
+          f' ({calc_corr_elapsed} s)')
+    print(f'with mean performance {mean_performance} corr/s')
+    print('(excluding results restored from save).')
 
 
 def mpz_bitarray(nums, item_bit_lenght):
@@ -471,9 +547,11 @@ def collect_correlations(music_data_dir,
                          threshold=0,
                          profiling=False,
                          debug=False):
+    start_load = time.perf_counter_ns()
     frames = [get_frame(track, frame_time, frame_align)
               for track in load_fingerprints(music_data_dir)]
-
+    elapsed_load = (time.perf_counter_ns() - start_load) / 10 ** 9
+    print(f'Fingerprints loaded in {fix(elapsed_load)} s.')
     print('Total audio fingerprints:', len(frames))
 
     calculate_correlations(frames,
