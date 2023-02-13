@@ -373,7 +373,7 @@ def calculate_correlations(tracks,
             if child.is_file():
                 child.unlink()
     detection_elapsed = (time.perf_counter_ns() - detection_start) / 10**9
-    print(f'Previous results detection finished in'
+    print(f'Previous results detection finished in '
           f'{fix(detection_elapsed)} s.')
 
     # start process in a loop
@@ -547,12 +547,16 @@ def collect_correlations(music_data_dir,
                          threshold=0,
                          profiling=False,
                          debug=False):
-    start_load = time.perf_counter_ns()
-    frames = [get_frame(track, frame_time, frame_align)
-              for track in load_fingerprints(music_data_dir)]
-    elapsed_load = (time.perf_counter_ns() - start_load) / 10 ** 9
+    start_loading = time.perf_counter_ns()
+    tracks = load_fingerprints(music_data_dir)
+    elapsed_loading = (time.perf_counter_ns() - start_loading) / 10 ** 9
     print(f'Fingerprints loaded in {fix(elapsed_load)} s.')
     print('Total audio fingerprints:', len(frames))
+
+    start_framing = time.perf_counter_ns()
+    frames = [get_frame(track, frame_time, frame_align) for track in tracks]
+    elapsed_framing = (time.perf_counter_ns() - start_framing) / 10 ** 9
+    print(f'Fingerprints framed in {fix(elapsed_framing)} s.')
 
     calculate_correlations(frames,
                            music_data_dir,
