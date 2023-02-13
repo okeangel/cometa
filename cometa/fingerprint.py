@@ -464,8 +464,8 @@ def calculate_correlations(tracks,
         # progress indication
 
         iter_elapsed = (time.perf_counter_ns() - iter_start) / 10**9
-        end_in_seconds = ((pairs_expected - pairs_processed) * batch_size
-                          / iter_elapsed)                          
+        end_in_seconds = ((pairs_expected - pairs_processed) * iter_elapsed
+                          / batch_size)                          
         end_in = datetime.timedelta(seconds=end_in_seconds)
         print(f'{str_no_microseconds(end_in):>8}', end=' | ')
         print(f'{pairs_processed / pairs_expected:4.0%}', end=' | ')
@@ -496,9 +496,9 @@ def calculate_correlations(tracks,
     calc_corr_timedelta = datetime.timedelta(seconds=calc_corr_elapsed)
     mean_performance = (pairs_processed - handicap) / calc_corr_elapsed
     print(f'Task completed in {str_no_microseconds(calc_corr_timedelta)}'
-          f' ({calc_corr_elapsed} s)')
-    print(f'with mean performance {mean_performance} corr/s')
-    print('(excluding results restored from save).')
+          f' ({calc_corr_elapsed} s)'
+          f' with mean performance {mean_performance} corr/s'
+          ' (excluding results restored from save).')
 
 
 def mpz_bitarray(nums, item_bit_lenght):
@@ -550,8 +550,8 @@ def collect_correlations(music_data_dir,
     start_loading = time.perf_counter_ns()
     tracks = load_fingerprints(music_data_dir)
     elapsed_loading = (time.perf_counter_ns() - start_loading) / 10 ** 9
-    print(f'Fingerprints loaded in {fix(elapsed_load)} s.')
-    print('Total audio fingerprints:', len(frames))
+    print(f'Fingerprints loaded in {fix(elapsed_loading)} s.')
+    print('Total audio fingerprints:', len(tracks))
 
     start_framing = time.perf_counter_ns()
     frames = [get_frame(track, frame_time, frame_align) for track in tracks]
