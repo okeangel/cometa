@@ -102,7 +102,7 @@ def get_paths(basic_paths):
 
 
 def collect_fingerprints(dirs_to_scan,
-                         path_to_dump,
+                         music_data_dir,
                          profiling=False,
                          frame_time=SAMPLE_TIME,
                          frame_align='head'):
