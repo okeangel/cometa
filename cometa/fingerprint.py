@@ -395,8 +395,7 @@ def calculate_correlations(tracks,
         processed = []
         while places_left > 0 and tracks:
             chosen_track = tracks.pop()
-            batch.extend([[chosen_track, track]
-                                 for track in reversed(tracks)])
+            batch.extend([[chosen_track, track] for track in reversed(tracks)])
             processed.append(chosen_track['path'])
             places_left -= len(tracks)
         batch_size = len(batch)
