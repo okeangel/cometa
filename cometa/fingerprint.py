@@ -81,11 +81,11 @@ def calculate_fingerprint(file, length=SAMPLE_TIME):
 def get_fingerprints(files, length=SAMPLE_TIME, profiling=False):
     if profiling:
         tasks = map(calculate_fingerprint, files)
-        results = [result for result in tqdm.tqdm(tasks, total=len(files))]
     else:
         pool = multiprocessing.Pool()
         tasks = pool.imap_unordered(calculate_fingerprint, files)
-        results = [result for result in tqdm.tqdm(tasks, total=len(files))]
+    progress = tqdm.tqdm(tasks, total=len(files))
+    results = [result for result in progress]
 
     files = [file for file in results if file['fingerprint']]
     files.sort(key=lambda x: len(x['fingerprint']))
@@ -348,8 +348,9 @@ def calculate_correlations(tracks,
               'Previously processed data will be skipped.')
 
         # update tracks to saved state
+        processed_tracks = jsonl.load(processed_tracks_path)
         tracks = [track for track in tracks
-                 if track['path'] not in jsonl.load(processed_tracks_path)]
+                  if track['path'] not in processed_tracks]
 
         # update counters to saved state
         iteration = len(jsonl.load(processed_dumps_path)) + 1
@@ -369,8 +370,8 @@ def calculate_correlations(tracks,
 
     # start process in a loop
 
-    print(' Iter |    Chunk Size      |   Performance  |'
-          '  Elapsed  |  End in  | Progress')
+    print(' Iter |     Batch Size     |   Performance  |'
+          '  Elapsed  | Progress |  End in')
     while tracks:
 
         # TODO: define iteration as function
@@ -417,7 +418,6 @@ def calculate_correlations(tracks,
 
         performance = batch_size / batch_corr_elapsed
         print(f'{performance:7.0f} corr/s', end=' | ')
-        print(f'{fix(batch_corr_elapsed)}', end=' | ')
 
         # filter batch results
 
@@ -457,22 +457,25 @@ def calculate_correlations(tracks,
         end_in_seconds = ((pairs_expected - pairs_processed) * iter_elapsed
                           / batch_size)                          
         end_in = datetime.timedelta(seconds=end_in_seconds)
-        print(f'{str_no_microseconds(end_in):>8}', end=' | ')
-        print(f'{pairs_processed / pairs_expected:4.0%}', end=' | ')
+        print(f'{fix(iter_elapsed)}', end=' | ')
+        print(f'{pairs_processed / pairs_expected:8.2%}', end=' | ')
+        print(f'{str_no_microseconds(end_in):>8}')
 
-        # perf_couters indication
+        # log perf_couters
 
-        parts = [batching_elapsed, batch_corr_elapsed, dumping_elapsed]
-        other_elapsed = iter_elapsed - sum(parts)
-        parts.append(other_elapsed)
-
-        print(f'i: {fix(iter_elapsed)}', end=' = ')
-        print(f'b: {fix(batching_elapsed)}', end=' + ')
-        print(f'c: {fix(batch_corr_elapsed)}', end=' + ')
-        print(f'd: {fix(dumping_elapsed)}', end=' + ')
-        print(f'o: {fix(other_elapsed)}')
-        
-        jsonl.dump(parts, processed_elapsed_path, mode='a')
+        other_elapsed = (iter_elapsed
+                         - batching_elapsed
+                         - batch_corr_elapsed
+                         - dumping_elapsed)
+        parts = {
+            'batch_size': batch_size,
+            'tracks_left': len(tracks),
+            'batching': batching_elapsed,
+            'calculating': batch_corr_elapsed,
+            'dumping': dumping_elapsed,
+            'other': other_elapsed,
+        }
+        jsonl.dump([parts], processed_elapsed_path, mode='a')
         
 
     for child in music_data_dir.glob('correlations_*.jsonl'):
